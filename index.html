@@ -137,13 +137,76 @@ canvas{display:block;max-width:100%}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .empty{text-align:center;padding:40px;color:var(--muted)}
 @media(max-width:600px){.stats-bar{gap:14px}.filters{flex-direction:column;align-items:stretch}}
+/* Weekly view */
+.week-stat{display:flex;flex-direction:column;align-items:center;background:var(--bg);border-radius:8px;padding:12px 16px;min-width:100px}
+.week-stat-lbl{font-size:11px;color:var(--muted);margin-bottom:3px;white-space:nowrap}
+.week-stat-val{font-size:17px;font-weight:700}
+.wow-badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:12px;font-weight:600;margin-left:8px}
+.wow-up{background:rgba(204,58,47,.1);color:var(--red)}
+.wow-down{background:rgba(42,156,82,.1);color:var(--green)}
+/* Heatmap */
+.hmap-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin:8px 0}
+.hmap-dow{font-size:10px;font-weight:600;color:var(--muted);text-align:center;padding:2px 0}
+.hmap-cell{aspect-ratio:1;border-radius:4px;cursor:pointer;transition:transform .1s;position:relative;display:flex;align-items:center;justify-content:center}
+.hmap-cell:hover{transform:scale(1.08)}
+.hmap-day{font-size:10px;font-weight:600;color:rgba(0,0,0,.45)}
+.hmap-legend{display:flex;align-items:center;gap:5px;margin-top:8px;font-size:11px;color:var(--muted)}
+.hmap-swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0}
+/* Day popup */
+.day-pop{position:fixed;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.15);width:280px;max-height:340px;overflow-y:auto;display:none}
+.day-pop.open{display:block}
+.day-pop-hdr{padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px;position:sticky;top:0;background:var(--card);display:flex;justify-content:space-between;align-items:center}
+.day-pop-row{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--border);font-size:12px}
+.day-pop-row:last-child{border-bottom:none}
+/* Recurring */
+.rec-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.rec-row:last-child{border-bottom:none}
+.rec-icon{font-size:20px;flex-shrink:0;width:32px;text-align:center}
+.rec-info{flex:1;min-width:0}
+.rec-name{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rec-meta{font-size:11px;color:var(--muted);margin-top:1px}
+.rec-amt{font-size:14px;font-weight:700;flex-shrink:0}
+/* Insights */
+.insight-card{display:flex;align-items:flex-start;gap:12px;background:var(--bg);border-radius:10px;padding:14px;margin-bottom:10px}
+.insight-card:last-child{margin-bottom:0}
+.insight-icon{font-size:22px;flex-shrink:0;width:32px;text-align:center}
+.insight-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:3px}
+.insight-txt{font-size:13px;color:var(--text);line-height:1.4}
+/* Theme picker */
+.theme-pop{position:absolute;top:calc(100% + 8px);right:0;z-index:400;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.16);padding:12px;display:none;grid-template-columns:repeat(3,1fr);gap:6px;width:186px}
+.theme-pop.open{display:grid}
+.theme-opt{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;padding:7px 4px;border-radius:8px;transition:background .12s;border:2px solid transparent}
+.theme-opt:hover{background:var(--bg)}
+.theme-opt.sel{border-color:var(--accent)}
+.theme-swatch{width:28px;height:28px;border-radius:50%}
+.theme-name{font-size:10px;font-weight:500;color:var(--muted);white-space:nowrap}
 </style>
+<script>(function(){
+  var k=localStorage.getItem('spt-theme');
+  var T={
+    pink:  ['#fdf0f3','#fff','#e8c8d4','#2a1018','#7a4860','#a83060','#8c2450','0 2px 10px rgba(0,0,0,.07)'],
+    blue:  ['#edf3fa','#fff','#c4d4e8','#0e1e36','#446080','#2860a0','#1c4c88','0 2px 10px rgba(0,0,0,.07)'],
+    yellow:['#faf6e6','#fff','#e0d088','#261c00','#6a5420','#a87818','#8c6010','0 2px 10px rgba(0,0,0,.07)'],
+    purple:['#f2eefa','#fff','#ccc0e8','#18083a','#584870','#6438b0','#502c98','0 2px 10px rgba(0,0,0,.07)'],
+    black: ['#141414','#1e1e1e','#323232','#ebebeb','#8a8a8a','#5a5a5a','#464646','0 2px 10px rgba(0,0,0,.35)']
+  };
+  if(k&&T[k]){
+    var v=T[k],s=document.documentElement.style;
+    ['--bg','--card','--border','--text','--muted','--accent','--accentH','--sh'].forEach(function(p,i){s.setProperty(p,v[i]);});
+  }
+})();</script>
 </head>
 <body>
 <div class="wrap">
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px">
-    <h1 id="app-title" style="margin-bottom:0"></h1>
-    <button id="title-edit-btn" class="btn-icon" onclick="startTitleEdit()" title="Edit name" style="font-size:14px;opacity:.55;margin-top:2px">✏️</button>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <h1 id="app-title" style="margin-bottom:0"></h1>
+      <button id="title-edit-btn" class="btn-icon" onclick="startTitleEdit()" title="Edit name" style="font-size:14px;opacity:.55;margin-top:2px">✏️</button>
+    </div>
+    <div style="position:relative;flex-shrink:0">
+      <button id="theme-btn" class="btn-icon" onclick="toggleThemePop(event)" title="Change theme" style="font-size:18px;opacity:.65">🎨</button>
+      <div id="theme-pop" class="theme-pop"></div>
+    </div>
   </div>
   <!-- Upload -->
   <div class="card">
@@ -175,6 +238,10 @@ canvas{display:block;max-width:100%}
         <div style="display:flex;gap:4px">
           <button class="vtab active" id="vtab-summary" onclick="setView('summary')">Monthly</button>
           <button class="vtab" id="vtab-health" onclick="setView('health')">Budget Health</button>
+          <button class="vtab" id="vtab-weekly" onclick="setView('weekly')">Weekly</button>
+          <button class="vtab" id="vtab-heatmap" onclick="setView('heatmap')">Heatmap</button>
+          <button class="vtab" id="vtab-recurring" onclick="setView('recurring')">Recurring</button>
+          <button class="vtab" id="vtab-insights" onclick="setView('insights')">Insights</button>
         </div>
       </div>
       <div style="display:flex;gap:6px">
@@ -203,6 +270,10 @@ canvas{display:block;max-width:100%}
     <div id="health-view" style="display:none">
       <div id="health-content"></div>
     </div>
+    <div id="weekly-view" style="display:none"></div>
+    <div id="heatmap-view" style="display:none"></div>
+    <div id="recurring-view" style="display:none"></div>
+    <div id="insights-view" style="display:none"></div>
   </div>
   <!-- Transactions -->
   <div class="card" id="txn-card" style="display:none">
@@ -304,6 +375,8 @@ canvas{display:block;max-width:100%}
   <div id="reimb-pop-list" class="reimb-pop-list"></div>
 </div>
 
+<div id="day-pop" class="day-pop"></div>
+
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
 let S = { accounts:[], transactions:[], customCats:[], catRenames:{}, budgets:{} };
@@ -369,6 +442,12 @@ function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 function money(n) { return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function fmtMonth(ym) { const [y,m]=ym.split('-'); return new Date(+y,+m-1,1).toLocaleString('default',{month:'long',year:'numeric'}); }
 function fmtDate(d) { if(!d)return''; const p=d.split('-'); return p.length===3?`${p[1]}/${p[2]}/${p[0]}`:d; }
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function parseHex(hex) {
+  hex = hex.replace(/^#/,'');
+  if (hex.length===3) hex=hex.split('').map(c=>c+c).join('');
+  return { r:parseInt(hex.slice(0,2),16), g:parseInt(hex.slice(2,4),16), b:parseInt(hex.slice(4,6),16) };
+}
 function showErr(msg) { const e=document.getElementById('upload-err'); e.textContent=msg; e.style.display='block'; }
 function hideErr() { document.getElementById('upload-err').style.display='none'; }
 function toast(msg) { const el=document.createElement('div'); el.className='toast'; el.textContent=msg; document.body.appendChild(el); setTimeout(()=>el.remove(),4000); }
@@ -770,7 +849,14 @@ function renderSummary() {
 
   renderCharts();
 }
-function setSumMonth(m) { summaryMonth=m; renderSummary(); if(currentView==='health') renderBudgetHealth(); }
+function setSumMonth(m) {
+  summaryMonth = m;
+  renderSummary();
+  if (currentView === 'health') renderBudgetHealth();
+  else if (currentView === 'weekly') renderWeekly();
+  else if (currentView === 'heatmap') renderHeatmap();
+  else if (currentView === 'insights') renderInsights();
+}
 
 // ── Category Filter ────────────────────────────────────────────────────────────
 function renderCatFilter() {
@@ -897,9 +983,9 @@ function drawDonut(expenses) {
     angle+=sweep+gap;
   }
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle='#1e2a1e'; ctx.font="700 16px -apple-system,'Segoe UI',sans-serif";
+  ctx.fillStyle=cssVar('--text'); ctx.font="700 16px -apple-system,'Segoe UI',sans-serif";
   ctx.fillText('$'+grand.toLocaleString('en-US',{maximumFractionDigits:0}),cx,cy-9);
-  ctx.font="11px -apple-system,'Segoe UI',sans-serif"; ctx.fillStyle='#627160';
+  ctx.font="11px -apple-system,'Segoe UI',sans-serif"; ctx.fillStyle=cssVar('--muted');
   ctx.fillText('spending',cx,cy+10);
   document.getElementById('donut-legend').innerHTML=slices.map(([cat,val])=>`
     <div class="legend-row">
@@ -917,13 +1003,16 @@ function drawBar() {
   const data=allMonths.map(m=>({ month:m, total:chartExpenses(m).reduce((s,t)=>s+userCost(t),0) }));
   const W=cssW,H=cssH,pL=58,pR=12,pT=14,pB=36,cW=W-pL-pR,cH=H-pT-pB;
   ctx.clearRect(0,0,W,H);
+  const accent=cssVar('--accent'), muted=cssVar('--muted'), border=cssVar('--border');
+  const {r:ar,g:ag,b:ab}=parseHex(accent), {r:cr,g:cg,b:cb}=parseHex(cssVar('--card'));
+  const inactiveBar=`rgb(${Math.round(ar*.22+cr*.78)},${Math.round(ag*.22+cg*.78)},${Math.round(ab*.22+cb*.78)})`;
   const maxVal=Math.max(...data.map(d=>d.total),1);
   const niceMax=Math.ceil(maxVal/50)*50;
   ctx.lineWidth=1;
   for (let i=0;i<=4;i++) {
     const val=(niceMax/4)*i, y=pT+cH-(val/niceMax)*cH;
-    ctx.strokeStyle='#d0dbd0'; ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(pL+cW,y); ctx.stroke();
-    ctx.fillStyle='#627160'; ctx.font="10px -apple-system,sans-serif";
+    ctx.strokeStyle=border; ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(pL+cW,y); ctx.stroke();
+    ctx.fillStyle=muted; ctx.font="10px -apple-system,sans-serif";
     ctx.textAlign='right'; ctx.textBaseline='middle';
     ctx.fillText('$'+(val>=1000?(val/1000).toFixed(val%1000?1:0)+'k':Math.round(val)),pL-5,y);
   }
@@ -931,7 +1020,7 @@ function drawBar() {
   data.forEach(({month,total},i)=>{
     const bH=(total/niceMax)*cH, x=pL+i*slotW+slotW/2-barW/2, y=pT+cH-bH;
     const isActive=month===summaryMonth;
-    ctx.fillStyle=isActive?'#527a42':'#b8cdb4';
+    ctx.fillStyle=isActive?accent:inactiveBar;
     const rr=Math.min(4,bH/2);
     if (bH>0) {
       ctx.beginPath();
@@ -942,7 +1031,7 @@ function drawBar() {
     }
     const [yr,mo]=month.split('-');
     const label=new Date(+yr,+mo-1,1).toLocaleString('default',{month:'short'});
-    ctx.fillStyle=isActive?'#527a42':'#627160';
+    ctx.fillStyle=isActive?accent:muted;
     ctx.font=`${isActive?'600':'400'} 10px -apple-system,sans-serif`;
     ctx.textAlign='center'; ctx.textBaseline='top';
     ctx.fillText(label,pL+i*slotW+slotW/2,pT+cH+5);
@@ -952,11 +1041,19 @@ function drawBar() {
 // ── View Switching ────────────────────────────────────────────────────────────
 function setView(v) {
   currentView = v;
-  document.getElementById('summary-view').style.display = v === 'summary' ? '' : 'none';
-  document.getElementById('health-view').style.display  = v === 'health'  ? '' : 'none';
-  document.getElementById('vtab-summary').classList.toggle('active', v === 'summary');
-  document.getElementById('vtab-health').classList.toggle('active',  v === 'health');
+  const allViews = ['summary','health','weekly','heatmap','recurring','insights'];
+  allViews.forEach(id => {
+    document.getElementById(id+'-view').style.display = v === id ? '' : 'none';
+    const tab = document.getElementById('vtab-'+id);
+    if (tab) tab.classList.toggle('active', v === id);
+  });
+  const layoutBtn = document.getElementById('layout-toggle-btn');
+  if (layoutBtn) layoutBtn.style.display = v === 'summary' ? '' : 'none';
   if (v === 'health') renderBudgetHealth();
+  else if (v === 'weekly') renderWeekly();
+  else if (v === 'heatmap') renderHeatmap();
+  else if (v === 'recurring') renderRecurring();
+  else if (v === 'insights') renderInsights();
 }
 
 // ── Budget Health ─────────────────────────────────────────────────────────────
@@ -1080,7 +1177,14 @@ function commitTitleEdit() {
 document.getElementById('acct-modal').addEventListener('keydown',e=>{ if(e.key==='Enter')saveAcct(); if(e.key==='Escape')closeAcctModal(); });
 document.getElementById('cat-modal').addEventListener('keydown',e=>{ if(e.key==='Escape')closeCatModal(); });
 document.getElementById('budget-modal').addEventListener('keydown',e=>{ if(e.key==='Escape')closeBudgetModal(); });
-function render() { renderBalances(); renderSummary(); renderTransactions(); renderCharts(); if(currentView==='health') renderBudgetHealth(); }
+function render() {
+  renderBalances(); renderSummary(); renderTransactions(); renderCharts();
+  if (currentView === 'health') renderBudgetHealth();
+  else if (currentView === 'weekly') renderWeekly();
+  else if (currentView === 'heatmap') renderHeatmap();
+  else if (currentView === 'recurring') renderRecurring();
+  else if (currentView === 'insights') renderInsights();
+}
 window.addEventListener('resize',()=>{ if(S.transactions.length) renderCharts(); });
 
 // Apply updated auto-categorization rules to any existing "Other" transactions
@@ -1155,7 +1259,456 @@ document.addEventListener('click', e => {
   }
 });
 
+// ── Weekly View ───────────────────────────────────────────────────────────────
+let selectedWeek = '';
+function getWeeks() {
+  if (!S.transactions.length) return [];
+  const dates = S.transactions.map(t => t.date).filter(Boolean);
+  let minDate = dates.reduce((a, b) => a < b ? a : b);
+  let maxDate = dates.reduce((a, b) => a > b ? a : b);
+  // Round minDate back to Sunday
+  const minD = new Date(minDate + 'T00:00:00');
+  const dow = minD.getDay();
+  minD.setDate(minD.getDate() - dow);
+  const maxD = new Date(maxDate + 'T00:00:00');
+  const weeks = [];
+  let cur = new Date(minD);
+  while (cur <= maxD) {
+    const yyyy = cur.getFullYear();
+    const mm = String(cur.getMonth() + 1).padStart(2, '0');
+    const dd = String(cur.getDate()).padStart(2, '0');
+    weeks.push(`${yyyy}-${mm}-${dd}`);
+    cur.setDate(cur.getDate() + 7);
+  }
+  return weeks.reverse();
+}
+function fmtWeekLabel(startStr) {
+  const start = new Date(startStr + 'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate() + 6);
+  const mo1 = start.toLocaleString('default', { month: 'short' });
+  const mo2 = end.toLocaleString('default', { month: 'short' });
+  const yr1 = start.getFullYear(), yr2 = end.getFullYear();
+  if (yr1 !== yr2) return `${mo1} ${start.getDate()}, ${yr1} – ${mo2} ${end.getDate()}, ${yr2}`;
+  if (mo1 !== mo2) return `${mo1} ${start.getDate()} – ${mo2} ${end.getDate()}, ${yr1}`;
+  return `${mo1} ${start.getDate()} – ${end.getDate()}, ${yr1}`;
+}
+function renderWeekly() {
+  const el = document.getElementById('weekly-view');
+  if (!S.transactions.length) { el.innerHTML = '<div class="empty">No transactions yet.</div>'; return; }
+  const [ymYr, ymMo] = summaryMonth.split('-').map(Number);
+  const monthFirst = new Date(ymYr, ymMo - 1, 1);
+  const monthLast  = new Date(ymYr, ymMo, 0);
+  const weeks = getWeeks().filter(startStr => {
+    const ws = new Date(startStr + 'T00:00:00');
+    const we = new Date(ws); we.setDate(we.getDate() + 6);
+    return ws <= monthLast && we >= monthFirst;
+  });
+  if (!weeks.length) { el.innerHTML = '<div class="empty">No data for this month.</div>'; return; }
+  if (!selectedWeek || !weeks.includes(selectedWeek)) selectedWeek = weeks[0];
+  // Build select
+  const selHtml = `<select class="fsel" id="week-sel" onchange="selectedWeek=this.value;renderWeekly()" style="margin-bottom:14px">
+    ${weeks.map(w => `<option value="${w}"${w === selectedWeek ? ' selected' : ''}>${fmtWeekLabel(w)}</option>`).join('')}
+  </select>`;
+  // Compute daily totals for selected week
+  const start = new Date(selectedWeek + 'T00:00:00');
+  const dayDates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start); d.setDate(d.getDate() + i);
+    dayDates.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+  }
+  const dailyTotals = dayDates.map(ds =>
+    S.transactions.filter(t => t.date === ds && t.amount > 0 && !t.excluded && !SPECIAL_CATS.includes(t.cat))
+      .reduce((s, t) => s + userCost(t), 0)
+  );
+  const weekTotal = dailyTotals.reduce((a, b) => a + b, 0);
+  const txnCt = dayDates.reduce((s, ds) =>
+    s + S.transactions.filter(t => t.date === ds && t.amount > 0 && !t.excluded && !SPECIAL_CATS.includes(t.cat)).length, 0);
+  // Top category
+  const catTotals = {};
+  dayDates.forEach(ds => {
+    S.transactions.filter(t => t.date === ds && t.amount > 0 && !t.excluded && !SPECIAL_CATS.includes(t.cat))
+      .forEach(t => { catTotals[t.cat] = (catTotals[t.cat] || 0) + userCost(t); });
+  });
+  const topCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0];
+  // Previous week
+  const prevStart = new Date(start); prevStart.setDate(prevStart.getDate() - 7);
+  const prevStartStr = `${prevStart.getFullYear()}-${String(prevStart.getMonth()+1).padStart(2,'0')}-${String(prevStart.getDate()).padStart(2,'0')}`;
+  const prevDates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(prevStart); d.setDate(d.getDate() + i);
+    prevDates.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+  }
+  const prevTotal = prevDates.reduce((s, ds) =>
+    s + S.transactions.filter(t => t.date === ds && t.amount > 0 && !t.excluded && !SPECIAL_CATS.includes(t.cat))
+      .reduce((a, t) => a + userCost(t), 0), 0);
+  let wowHtml = '';
+  if (prevTotal > 0) {
+    const diff = (weekTotal - prevTotal) / prevTotal * 100;
+    const sign = diff >= 0 ? '↑' : '↓';
+    const cls = diff >= 0 ? 'wow-up' : 'wow-down';
+    wowHtml = `<span class="wow-badge ${cls}">${sign} ${Math.abs(Math.round(diff))}% vs prev week</span>`;
+  }
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const maxVal = Math.max(...dailyTotals, 1);
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  el.innerHTML = `
+    ${selHtml}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="week-stat"><span class="week-stat-lbl">Total Spent</span><span class="week-stat-val" style="color:var(--red)">${money(weekTotal)}</span></div>
+      <div class="week-stat"><span class="week-stat-lbl">Transactions</span><span class="week-stat-val">${txnCt}</span></div>
+      ${topCat ? `<div class="week-stat"><span class="week-stat-lbl">Top Category</span><span class="week-stat-val" style="font-size:13px">${catEmoji(topCat[0])} ${catLabel(topCat[0])}</span></div>` : ''}
+      <div class="week-stat"><span class="week-stat-lbl">Prev Week</span><span class="week-stat-val" style="font-size:15px">${prevTotal > 0 ? money(prevTotal) : '—'}${wowHtml}</span></div>
+    </div>
+    <div style="background:var(--bg);border-radius:8px;padding:16px">
+      <div class="chart-title">Daily Spending</div>
+      <canvas id="weekly-canvas" style="width:100%;height:180px"></canvas>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:6px">
+        ${dayNames.map((d, i) => {
+          const isToday = dayDates[i] === todayStr;
+          return `<div style="text-align:center;font-size:10px;color:${isToday ? 'var(--accent)' : 'var(--muted)'};font-weight:${isToday ? '700' : '400'}">
+            <div>${d}</div>
+            <div style="font-size:12px;font-weight:500;margin-top:2px">${dailyTotals[i] > 0 ? money(dailyTotals[i]) : ''}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  requestAnimationFrame(() => drawWeeklyCanvas(dailyTotals, maxVal, dayDates, todayStr));
+}
+function drawWeeklyCanvas(dailyTotals, maxVal, dayDates, todayStr) {
+  const canvas = document.getElementById('weekly-canvas');
+  if (!canvas) return;
+  const cssW = Math.max(canvas.parentElement.clientWidth - 32, 200), cssH = 180;
+  const ctx = setupCanvas(canvas, cssW, cssH);
+  const W = cssW, H = cssH, pL = 48, pR = 8, pT = 12, pB = 28;
+  const cW = W - pL - pR, cH = H - pT - pB;
+  ctx.clearRect(0, 0, W, H);
+  const accent = cssVar('--accent'), accentH = cssVar('--accentH'), muted = cssVar('--muted'), border = cssVar('--border');
+  const niceMax = Math.ceil(maxVal / 10) * 10 || 10;
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const val = (niceMax / 4) * i, y = pT + cH - (val / niceMax) * cH;
+    ctx.strokeStyle = border; ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(pL + cW, y); ctx.stroke();
+    ctx.fillStyle = muted; ctx.font = '9px -apple-system,sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText('$' + (val >= 1000 ? (val/1000).toFixed(1) + 'k' : Math.round(val)), pL - 4, y);
+  }
+  const slotW = cW / 7, barW = Math.min(30, slotW * 0.6);
+  dailyTotals.forEach((val, i) => {
+    const bH = (val / niceMax) * cH;
+    const x = pL + i * slotW + slotW / 2 - barW / 2;
+    const y = pT + cH - bH;
+    const isToday = dayDates[i] === todayStr;
+    ctx.fillStyle = isToday ? accentH : accent;
+    const rr = Math.min(4, bH / 2);
+    if (bH > 0) {
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y); ctx.lineTo(x + barW - rr, y);
+      ctx.arcTo(x + barW, y, x + barW, y + rr, rr); ctx.lineTo(x + barW, pT + cH);
+      ctx.lineTo(x, pT + cH); ctx.lineTo(x, y + rr); ctx.arcTo(x, y, x + rr, y, rr);
+      ctx.closePath(); ctx.fill();
+    }
+  });
+}
+
+// ── Daily Heatmap ─────────────────────────────────────────────────────────────
+function heatColor(pct) {
+  const lo = parseHex(cssVar('--bg'));
+  const hi = parseHex(cssVar('--accentH'));
+  const r = Math.round(lo.r + (hi.r - lo.r) * pct);
+  const g = Math.round(lo.g + (hi.g - lo.g) * pct);
+  const b = Math.round(lo.b + (hi.b - lo.b) * pct);
+  return `rgb(${r},${g},${b})`;
+}
+function renderHeatmap() {
+  const el = document.getElementById('heatmap-view');
+  if (!S.transactions.length || !summaryMonth) { el.innerHTML = '<div class="empty">No data.</div>'; return; }
+  const [yr, mo] = summaryMonth.split('-').map(Number);
+  const daysInMonth = new Date(yr, mo, 0).getDate();
+  const firstDow = new Date(yr, mo - 1, 1).getDay(); // 0=Sun
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  // Compute daily totals
+  const dayTotals = {};
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    dayTotals[ds] = S.transactions
+      .filter(t => t.date === ds && t.amount > 0 && !t.excluded && !SPECIAL_CATS.includes(t.cat))
+      .reduce((s, t) => s + userCost(t), 0);
+  }
+  const maxSpend = Math.max(...Object.values(dayTotals), 0.01);
+  const dowLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let cells = dowLabels.map(d => `<div class="hmap-dow">${d}</div>`).join('');
+  // Leading blanks
+  for (let i = 0; i < firstDow; i++) cells += `<div></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const tot = dayTotals[ds] || 0;
+    const pct = tot / maxSpend;
+    const bg = heatColor(pct);
+    const isToday = ds === todayStr;
+    const ring = isToday ? `outline:2px solid var(--green);outline-offset:1px;` : '';
+    const _bgRgb = bg.match(/\d+/g); const _lum = _bgRgb ? (+_bgRgb[0]*299 + +_bgRgb[1]*587 + +_bgRgb[2]*114)/1000 : 200;
+    const textColor = _lum > 140 ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.85)';
+    cells += `<div class="hmap-cell" style="background:${bg};${ring}" onclick="openDayPop('${ds}',event)" title="${fmtDate(ds)}: ${money(tot)}">
+      <span class="hmap-day" style="color:${textColor}">${d}</span>
+    </div>`;
+  }
+  // Legend swatches
+  const swatches = [0, 0.2, 0.4, 0.6, 0.8, 1].map(p =>
+    `<span class="hmap-swatch" style="background:${heatColor(p)}"></span>`).join('');
+  el.innerHTML = `
+    <div class="hmap-grid">${cells}</div>
+    <div class="hmap-legend">Less ${swatches} More &nbsp;·&nbsp; Max: ${money(maxSpend)}/day</div>`;
+}
+let dayPopOpen = false;
+function openDayPop(dateStr, event) {
+  const pop = document.getElementById('day-pop');
+  const txns = S.transactions
+    .filter(t => t.date === dateStr && t.amount > 0 && !t.excluded && !SPECIAL_CATS.includes(t.cat))
+    .sort((a, b) => userCost(b) - userCost(a));
+  const total = txns.reduce((s, t) => s + userCost(t), 0);
+  if (!txns.length) {
+    pop.innerHTML = `<div class="day-pop-hdr"><span>${fmtDate(dateStr)}</span><button class="btn-icon" onclick="closeDayPop()">✕</button></div>
+      <div style="padding:14px;font-size:12px;color:var(--muted);text-align:center">No spending</div>`;
+  } else {
+    pop.innerHTML = `<div class="day-pop-hdr"><span>${fmtDate(dateStr)} · ${money(total)}</span><button class="btn-icon" onclick="closeDayPop()">✕</button></div>` +
+      txns.map(t => `<div class="day-pop-row">
+        <span style="font-size:14px">${catEmoji(t.cat)||'📦'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.desc)}">${esc(t.desc)}</div>
+          <div style="font-size:10px;color:var(--muted)">${catLabel(t.cat)}</div>
+        </div>
+        <span class="amt exp" style="font-size:12px">-${money(userCost(t))}</span>
+      </div>`).join('');
+  }
+  pop.classList.add('open');
+  dayPopOpen = true;
+  // Position popup
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const pw = 280, ph = Math.min(340, pop.scrollHeight + 20);
+  let left = event.clientX + 8, top = event.clientY - 30;
+  if (left + pw > vw - 8) left = event.clientX - pw - 8;
+  if (top + ph > vh - 8) top = vh - ph - 8;
+  if (top < 8) top = 8;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  event.stopPropagation();
+}
+function closeDayPop() {
+  document.getElementById('day-pop').classList.remove('open');
+  dayPopOpen = false;
+}
+document.addEventListener('click', e => {
+  if (dayPopOpen && !e.target.closest('#day-pop') && !e.target.closest('.hmap-cell')) {
+    closeDayPop();
+  }
+});
+
+// ── Recurring Charges ─────────────────────────────────────────────────────────
+function descKey(desc) {
+  return desc.toLowerCase()
+    .replace(/\*[^\s]*/g, '')          // strip *...
+    .replace(/#\d+/g, '')              // strip #NNN
+    .replace(/\b\d{4,}\b/g, '')        // strip 4+ digit numbers
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 22);
+}
+function renderRecurring() {
+  const el = document.getElementById('recurring-view');
+  const txns = S.transactions.filter(t => t.amount > 0 && !t.excluded && !SPECIAL_CATS.includes(t.cat));
+  if (!txns.length) { el.innerHTML = '<div class="empty">No transactions yet.</div>'; return; }
+  // Group by descKey
+  const groups = {};
+  for (const t of txns) {
+    const k = descKey(t.desc);
+    if (!k) continue;
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(t);
+  }
+  // Filter: 2+ distinct months, CV < 0.15, mean > $2
+  const recurring = [];
+  for (const [key, arr] of Object.entries(groups)) {
+    const months = new Set(arr.map(t => t.date.slice(0, 7)));
+    if (months.size < 2) continue;
+    const amounts = arr.map(t => userCost(t));
+    const mean = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+    if (mean <= 2) continue;
+    const variance = amounts.reduce((s, x) => s + (x - mean) ** 2, 0) / amounts.length;
+    const cv = Math.sqrt(variance) / mean;
+    if (cv >= 0.15) continue;
+    const lastTxn = arr.reduce((a, b) => a.date > b.date ? a : b);
+    recurring.push({ key, arr, mean, months: months.size, lastDate: lastTxn.date, cat: lastTxn.cat, desc: lastTxn.desc });
+  }
+  recurring.sort((a, b) => b.mean - a.mean);
+  if (!recurring.length) {
+    el.innerHTML = '<div class="empty">No recurring charges detected.<br><span style="font-size:12px">Needs 2+ months of data with consistent amounts.</span></div>';
+    return;
+  }
+  const totalMonthly = recurring.reduce((s, r) => s + r.mean, 0);
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+      <div class="week-stat"><span class="week-stat-lbl">Monthly Recurring</span><span class="week-stat-val" style="color:var(--red)">${money(totalMonthly)}</span></div>
+      <div class="week-stat"><span class="week-stat-lbl">Detected</span><span class="week-stat-val">${recurring.length}</span></div>
+    </div>
+    <div>
+      ${recurring.map(r => `
+        <div class="rec-row">
+          <div class="rec-icon">${catEmoji(r.cat) || '📦'}</div>
+          <div class="rec-info">
+            <div class="rec-name" title="${esc(r.desc)}">${esc(r.desc)}</div>
+            <div class="rec-meta">${catLabel(r.cat)} · last ${fmtDate(r.lastDate)} · ${r.months} months</div>
+          </div>
+          <div class="rec-amt" style="color:var(--red)">-${money(r.mean)}<div style="font-size:10px;font-weight:400;color:var(--muted);text-align:right">/mo avg</div></div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ── Spending Insights ─────────────────────────────────────────────────────────
+function renderInsights() {
+  const el = document.getElementById('insights-view');
+  if (!S.transactions.length || !summaryMonth) { el.innerHTML = '<div class="empty">No data.</div>'; return; }
+  const months = getMonths();
+  const curIdx = months.indexOf(summaryMonth);
+  const prevMonth = curIdx < months.length - 1 ? months[curIdx + 1] : null;
+  const curTxns = S.transactions.filter(t => t.date.startsWith(summaryMonth) && t.amount > 0 && !t.excluded && !SPECIAL_CATS.includes(t.cat));
+  const prevTxns = prevMonth ? S.transactions.filter(t => t.date.startsWith(prevMonth) && t.amount > 0 && !t.excluded && !SPECIAL_CATS.includes(t.cat)) : [];
+  // Compute cur month cat totals
+  const curCatTot = {};
+  curTxns.forEach(t => { curCatTot[t.cat] = (curCatTot[t.cat] || 0) + userCost(t); });
+  const curTotal = Object.values(curCatTot).reduce((a, b) => a + b, 0);
+  // Compute prev month cat totals
+  const prevCatTot = {};
+  prevTxns.forEach(t => { prevCatTot[t.cat] = (prevCatTot[t.cat] || 0) + userCost(t); });
+  // Daily totals for cur month
+  const dailyMap = {};
+  curTxns.forEach(t => { dailyMap[t.date] = (dailyMap[t.date] || 0) + userCost(t); });
+  const insights = [];
+  // 1. Biggest Spend Day
+  const dayEntries = Object.entries(dailyMap).sort((a, b) => b[1] - a[1]);
+  if (dayEntries.length) {
+    const [day, amt] = dayEntries[0];
+    insights.push({ icon:'📅', lbl:'Biggest Spend Day', txt:`${fmtDate(day)} — ${money(amt)} spent` });
+  }
+  // 2. Top Category
+  const topCatEntry = Object.entries(curCatTot).sort((a, b) => b[1] - a[1])[0];
+  if (topCatEntry && curTotal > 0) {
+    const pct = Math.round(topCatEntry[1] / curTotal * 100);
+    insights.push({ icon: catEmoji(topCatEntry[0]) || '🏷️', lbl: 'Top Category', txt: `${catLabel(topCatEntry[0])} makes up ${pct}% of spending (${money(topCatEntry[1])})` });
+  }
+  // 3. Fastest Growing (>25% MoM increase)
+  if (prevMonth) {
+    const growing = Object.entries(curCatTot)
+      .filter(([cat, amt]) => prevCatTot[cat] > 0 && (amt - prevCatTot[cat]) / prevCatTot[cat] > 0.25)
+      .sort((a, b) => (b[1] - prevCatTot[b[0]]) / prevCatTot[b[0]] - (a[1] - prevCatTot[a[0]]) / prevCatTot[a[0]]);
+    if (growing.length) {
+      const [cat, amt] = growing[0];
+      const pct = Math.round((amt - prevCatTot[cat]) / prevCatTot[cat] * 100);
+      insights.push({ icon:'📈', lbl:'Fastest Growing', txt:`${catLabel(cat)} up ${pct}% vs last month (${money(prevCatTot[cat])} → ${money(amt)})` });
+    }
+  }
+  // 4. Great Cut (>25% MoM drop)
+  if (prevMonth) {
+    const cuts = Object.entries(prevCatTot)
+      .filter(([cat, prev]) => curCatTot[cat] > 0 && (prev - curCatTot[cat]) / prev > 0.25)
+      .sort((a, b) => (b[1] - (curCatTot[b[0]]||0)) / b[1] - (a[1] - (curCatTot[a[0]]||0)) / a[1]);
+    if (cuts.length) {
+      const [cat, prev] = cuts[0];
+      const pct = Math.round((prev - (curCatTot[cat]||0)) / prev * 100);
+      insights.push({ icon:'✂️', lbl:'Great Cut', txt:`${catLabel(cat)} down ${pct}% vs last month (${money(prev)} → ${money(curCatTot[cat]||0)})` });
+    }
+  }
+  // 5. Budget Streak — category under budget in both months
+  const budgets = S.budgets || {};
+  if (prevMonth) {
+    const streaks = Object.entries(budgets)
+      .filter(([cat, bgt]) => bgt > 0 && (curCatTot[cat]||0) < bgt && (prevCatTot[cat]||0) < bgt && (curCatTot[cat]||0) > 0);
+    if (streaks.length) {
+      const [cat, bgt] = streaks[0];
+      insights.push({ icon:'🎯', lbl:'Budget Streak', txt:`${catLabel(cat)} under $${bgt.toLocaleString()} budget 2 months running!` });
+    }
+  }
+  // 6. Weekend vs Weekday
+  let wkndTotal = 0, wkdayTotal = 0, wkndDays = 0, wkdayDays = 0;
+  Object.entries(dailyMap).forEach(([ds, amt]) => {
+    const dow = new Date(ds + 'T00:00:00').getDay();
+    if (dow === 0 || dow === 6) { wkndTotal += amt; wkndDays++; } else { wkdayTotal += amt; wkdayDays++; }
+  });
+  const wkndAvg = wkndDays > 0 ? wkndTotal / wkndDays : 0;
+  const wkdayAvg = wkdayDays > 0 ? wkdayTotal / wkdayDays : 0;
+  if (wkndAvg > 0 && wkdayAvg > 0) {
+    const ratio = wkndAvg / wkdayAvg;
+    if (ratio > 1.5) insights.push({ icon:'🎉', lbl:'Weekend Spender', txt:`You spend ${money(wkndAvg)}/day on weekends vs ${money(wkdayAvg)}/day on weekdays (${Math.round(ratio)}× more)` });
+    else if (wkdayAvg / wkndAvg > 1.5) insights.push({ icon:'💼', lbl:'Weekday Spender', txt:`You spend ${money(wkdayAvg)}/day on weekdays vs ${money(wkndAvg)}/day on weekends (${Math.round(wkdayAvg/wkndAvg)}× more)` });
+  }
+  // 7. Savings Rate
+  const incomeTxns = S.transactions.filter(t => t.date.startsWith(summaryMonth) && t.amount < 0 && !t.excluded && t.cat === 'income');
+  const totalIncome = incomeTxns.reduce((s, t) => s + Math.abs(t.amount), 0);
+  if (totalIncome > 0 && curTotal > 0) {
+    const savingsRate = Math.max(0, (totalIncome - curTotal) / totalIncome * 100);
+    insights.push({ icon:'💰', lbl:'Savings Rate', txt:`${Math.round(savingsRate)}% saved — ${money(totalIncome)} income, ${money(curTotal)} spent` });
+  }
+  if (!insights.length) {
+    el.innerHTML = '<div class="empty">Not enough data for insights yet.</div>';
+    return;
+  }
+  el.innerHTML = insights.map(ins => `
+    <div class="insight-card">
+      <div class="insight-icon">${ins.icon}</div>
+      <div>
+        <div class="insight-lbl">${esc(ins.lbl)}</div>
+        <div class="insight-txt">${esc(ins.txt)}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ── Theme Selector ────────────────────────────────────────────────────────────
+const THEMES = {
+  green:  { label:'Matcha',   swatch:'#527a42', vars:['#edf2eb','#fff','#cdd9cb','#1e2a1e','#627160','#527a42','#3d5c30','0 2px 10px rgba(0,0,0,.07)'] },
+  pink:   { label:'Rose',     swatch:'#a83060', vars:['#fdf0f3','#fff','#e8c8d4','#2a1018','#7a4860','#a83060','#8c2450','0 2px 10px rgba(0,0,0,.07)'] },
+  blue:   { label:'Ocean',    swatch:'#2860a0', vars:['#edf3fa','#fff','#c4d4e8','#0e1e36','#446080','#2860a0','#1c4c88','0 2px 10px rgba(0,0,0,.07)'] },
+  yellow: { label:'Honey',    swatch:'#a87818', vars:['#faf6e6','#fff','#e0d088','#261c00','#6a5420','#a87818','#8c6010','0 2px 10px rgba(0,0,0,.07)'] },
+  purple: { label:'Lavender', swatch:'#6438b0', vars:['#f2eefa','#fff','#ccc0e8','#18083a','#584870','#6438b0','#502c98','0 2px 10px rgba(0,0,0,.07)'] },
+  black:  { label:'Midnight', swatch:'#505050', vars:['#141414','#1e1e1e','#323232','#ebebeb','#8a8a8a','#5a5a5a','#464646','0 2px 10px rgba(0,0,0,.35)'] }
+};
+const THEME_PROPS = ['--bg','--card','--border','--text','--muted','--accent','--accentH','--sh'];
+function applyTheme(key) {
+  const t = THEMES[key]; if (!t) return;
+  const s = document.documentElement.style;
+  THEME_PROPS.forEach((p, i) => s.setProperty(p, t.vars[i]));
+  localStorage.setItem('spt-theme', key);
+  renderThemePop();
+  if (S.transactions.length) {
+    renderCharts();
+    if (currentView === 'heatmap') renderHeatmap();
+    else if (currentView === 'weekly') renderWeekly();
+  }
+}
+function renderThemePop() {
+  const cur = localStorage.getItem('spt-theme') || 'green';
+  document.getElementById('theme-pop').innerHTML = Object.entries(THEMES).map(([key, t]) =>
+    `<div class="theme-opt${key===cur?' sel':''}" onclick="applyTheme('${key}');closeThemePop()">
+      <span class="theme-swatch" style="background:${t.swatch}"></span>
+      <span class="theme-name">${t.label}</span>
+    </div>`).join('');
+}
+function toggleThemePop(event) {
+  const pop = document.getElementById('theme-pop');
+  if (pop.classList.contains('open')) { closeThemePop(); return; }
+  renderThemePop();
+  pop.classList.add('open');
+  event.stopPropagation();
+}
+function closeThemePop() { document.getElementById('theme-pop').classList.remove('open'); }
+document.addEventListener('click', e => {
+  if (!e.target.closest('#theme-pop') && !e.target.closest('#theme-btn')) closeThemePop();
+});
+
 load(); recategorizeOther(); render(); renderTitle();
+// Apply saved theme (green is the default CSS, so only override if different)
+(function(){ const k=localStorage.getItem('spt-theme'); if(k&&THEMES[k]) applyTheme(k); })();
 if (!localStorage.getItem('spt-name')) setTimeout(startTitleEdit, 300);
 </script>
 </body>
