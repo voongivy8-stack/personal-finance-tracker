@@ -114,6 +114,24 @@ canvas{display:block;max-width:100%}
 .swatch-opt{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .1s,border-color .1s;flex-shrink:0}
 .swatch-opt:hover{transform:scale(1.15)}
 .swatch-opt.sel{border-color:var(--text)}
+/* Reimb. searchable dropdown */
+.reimb-popup{position:fixed;z-index:200;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.14);width:300px;overflow:hidden;flex-direction:column;display:none}
+.reimb-popup.open{display:flex}
+.reimb-pop-search{padding:8px 8px 6px}
+.reimb-pop-search input{width:100%;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;outline:none;background:var(--bg);color:var(--text);transition:border-color .15s}
+.reimb-pop-search input:focus{border-color:var(--accent)}
+.reimb-pop-list{overflow-y:auto;max-height:240px}
+.reimb-opt{padding:7px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.reimb-opt:last-child{border-bottom:none}
+.reimb-opt:hover{background:var(--bg)}
+.reimb-opt.sel{background:rgba(82,122,66,.08)}
+.reimb-opt-info{flex:1;min-width:0}
+.reimb-opt-date{font-size:11px;color:var(--muted)}
+.reimb-opt-desc{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reimb-opt-amt{font-size:12px;font-weight:600;color:var(--red);flex-shrink:0;font-variant-numeric:tabular-nums}
+.reimb-dd-btn{display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;background:var(--card);max-width:220px;min-width:140px;overflow:hidden;user-select:none;transition:border-color .15s}
+.reimb-dd-btn:hover{border-color:var(--accent)}
+.reimb-dd-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Toast */
 .toast{position:fixed;bottom:24px;right:24px;background:#1e2a1e;color:#fff;padding:12px 18px;border-radius:8px;font-size:14px;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.2);animation:fadeIn .2s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -274,6 +292,16 @@ canvas{display:block;max-width:100%}
       <button class="btn btn-primary" onclick="showAddCatBox()">+ New Category</button>
     </div>
   </div>
+</div>
+
+<!-- Reimb. search popup -->
+<div id="reimb-popup" class="reimb-popup">
+  <div class="reimb-pop-search">
+    <input type="text" id="reimb-search-in" placeholder="Search description or amount…"
+      oninput="filterReimbOpts(this.value)"
+      onkeydown="if(event.key==='Escape')closeReimbPopup()">
+  </div>
+  <div id="reimb-pop-list" class="reimb-pop-list"></div>
 </div>
 
 <script>
@@ -820,10 +848,12 @@ function reimbDropdown(incomingId,linkedExpId) {
     .filter(t=>t.amount>0&&!t.excluded&&!SPECIAL_CATS.includes(t.cat))
     .sort((a,b)=>b.date.localeCompare(a.date));
   if (!expenses.length) return '<span style="font-size:11px;color:var(--muted)">No expenses</span>';
-  return `<select class="reimb-sel" onchange="linkReimbursement('${incomingId}',this.value)">
-    <option value="">— reimb. for… —</option>
-    ${expenses.map(t=>`<option value="${t.id}"${t.id===linkedExpId?' selected':''}>${fmtDate(t.date)} · ${esc(t.desc.slice(0,30))} (${money(t.amount)})</option>`).join('')}
-  </select>`;
+  const sel=linkedExpId?expenses.find(t=>t.id===linkedExpId):null;
+  const lbl=sel?`${fmtDate(sel.date)} · ${sel.desc.slice(0,25)} (-${money(sel.amount)})`:'— reimb. for… —';
+  return `<div class="reimb-dd-btn" onclick="event.stopPropagation();openReimbPopup('${incomingId}',this)">
+    <span class="reimb-dd-label" style="color:${sel?'var(--text)':'var(--muted)'}">${esc(lbl)}</span>
+    <span style="flex-shrink:0;color:var(--muted);font-size:10px;margin-left:2px">▾</span>
+  </div>`;
 }
 function linkReimbursement(incomingId,expenseId) {
   const t=S.transactions.find(t=>t.id===incomingId);
@@ -1065,6 +1095,65 @@ function recategorizeOther() {
   if (changed) save();
   return changed;
 }
+
+// ── Reimb. Search Popup ───────────────────────────────────────────────────────
+let activeReimbId = null;
+function openReimbPopup(incomingId, triggerEl) {
+  if (activeReimbId === incomingId) { closeReimbPopup(); return; }
+  activeReimbId = incomingId;
+  const popup = document.getElementById('reimb-popup');
+  popup.classList.add('open');
+  const rect = triggerEl.getBoundingClientRect();
+  let top = rect.bottom + 4, left = rect.left;
+  if (top + 300 > window.innerHeight) top = Math.max(4, rect.top - 300);
+  if (left + 304 > window.innerWidth) left = Math.max(4, window.innerWidth - 308);
+  popup.style.top = top + 'px';
+  popup.style.left = left + 'px';
+  const inp = document.getElementById('reimb-search-in');
+  inp.value = '';
+  filterReimbOpts('');
+  setTimeout(() => inp.focus(), 0);
+}
+function filterReimbOpts(query) {
+  if (activeReimbId === null) return;
+  const src = S.transactions.find(t => t.id === activeReimbId);
+  const linkedId = src ? (src.reimburses || '') : '';
+  const q = query.toLowerCase();
+  const expenses = S.transactions
+    .filter(t => t.amount > 0 && !t.excluded && !SPECIAL_CATS.includes(t.cat))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const matches = q
+    ? expenses.filter(t => (t.desc + ' ' + money(t.amount)).toLowerCase().includes(q))
+    : expenses;
+  const list = document.getElementById('reimb-pop-list');
+  list.innerHTML =
+    `<div class="reimb-opt${!linkedId ? ' sel' : ''}" onclick="selectReimbOpt('')">
+      <div class="reimb-opt-info"><span class="reimb-opt-desc" style="color:var(--muted)">— no reimbursement —</span></div>
+    </div>` +
+    (matches.length
+      ? matches.map(t => `<div class="reimb-opt${t.id === linkedId ? ' sel' : ''}" onclick="selectReimbOpt('${t.id}')">
+          <div class="reimb-opt-info">
+            <div class="reimb-opt-date">${fmtDate(t.date)}</div>
+            <div class="reimb-opt-desc">${esc(t.desc)}</div>
+          </div>
+          <span class="reimb-opt-amt">-${money(t.amount)}</span>
+        </div>`).join('')
+      : '<div style="padding:12px;text-align:center;color:var(--muted);font-size:13px">No matches</div>');
+}
+function selectReimbOpt(expenseId) {
+  const id = activeReimbId;
+  closeReimbPopup();
+  linkReimbursement(id, expenseId);
+}
+function closeReimbPopup() {
+  document.getElementById('reimb-popup').classList.remove('open');
+  activeReimbId = null;
+}
+document.addEventListener('click', e => {
+  if (activeReimbId !== null && !e.target.closest('#reimb-popup') && !e.target.closest('.reimb-dd-btn')) {
+    closeReimbPopup();
+  }
+});
 
 load(); recategorizeOther(); render(); renderTitle();
 if (!localStorage.getItem('spt-name')) setTimeout(startTitleEdit, 300);
