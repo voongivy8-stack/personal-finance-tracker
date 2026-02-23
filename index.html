@@ -310,6 +310,7 @@ canvas{display:block;max-width:100%}
     <div class="filters">
       <select class="fsel" id="f-month" onchange="txnPage=1;render()"><option value="">All Months</option></select>
       <select class="fsel" id="f-cat" onchange="txnPage=1;render()"><option value="">All Categories</option></select>
+      <select class="fsel" id="f-acct" onchange="txnPage=1;render()"><option value="">All Accounts</option></select>
       <select class="fsel" id="f-excl" onchange="txnPage=1;render()">
         <option value="">All Statuses</option>
         <option value="active">Active Only</option>
@@ -321,7 +322,7 @@ canvas{display:block;max-width:100%}
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Description</th><th>Category</th>
+            <th>Date</th><th>Account</th><th>Description</th><th>Category</th>
             <th style="text-align:right">Amount</th><th>Reimb. for</th>
             <th style="text-align:right">Your Cost</th><th style="text-align:center">Excl.<span class="col-tip" title="Check this to exclude a transaction from your spending totals. Use this for credit card payments and bank transfers to avoid counting them twice.">?</span></th><th></th>
           </tr>
@@ -371,9 +372,13 @@ canvas{display:block;max-width:100%}
       </div>
 
       <div class="help-section">
-        <div class="help-section-title">🏦 Managing Accounts</div>
-        <div class="help-row"><span class="help-row-icon">→</span><div>Click <strong>+ Add Account</strong> in the Account Balances card to track checking, savings, credit cards, and brokerage accounts.</div></div>
-        <div class="help-row"><span class="help-row-icon">→</span><div>Balances are entered manually. The <strong>Total Net Worth</strong> tile sums all accounts, subtracting any credit card balances owed.</div></div>
+        <div class="help-section-title">🏦 Account Balances</div>
+        <div class="help-row"><span class="help-row-icon">1.</span><div>Click <strong>+ Add Account</strong> and enter your <strong>current balance</strong> from your bank app. This is your starting point — get it right once and the app tracks it from there.</div></div>
+        <div class="help-row"><span class="help-row-icon">2.</span><div>Each time you import a CSV, assign it to the correct account. The balance updates automatically based on the imported transactions.</div></div>
+        <div class="help-row"><span class="help-row-icon">💳</span><div><strong>Credit cards:</strong> new charges increase the balance owed; payments decrease it.</div></div>
+        <div class="help-row"><span class="help-row-icon">🏦</span><div><strong>Checking &amp; savings:</strong> deposits increase the balance; charges and withdrawals decrease it.</div></div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>After each import you'll see a <strong>Review Balance</strong> prompt. Confirm the calculated balance or type in the exact figure from your bank app to keep things precise.</div></div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>The <strong>Total Net Worth</strong> tile sums all accounts, subtracting credit card balances owed.</div></div>
       </div>
 
     </div>
@@ -439,6 +444,38 @@ canvas{display:block;max-width:100%}
   </div>
 </div>
 
+<!-- CSV Account Selection Modal -->
+<div class="overlay" id="csv-acct-modal" onclick="if(event.target===this)closeCSVAccountModal()">
+  <div class="modal">
+    <h3>Which account is this from?</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Select the account this CSV was exported from, or leave blank to import without linking.</p>
+    <div class="fg">
+      <label>Account</label>
+      <select id="csv-acct-sel"></select>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeCSVAccountModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmCSVImport()">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- Balance Confirm Modal -->
+<div class="overlay" id="bal-confirm-modal" onclick="if(event.target===this)closeBalConfirmModal()">
+  <div class="modal">
+    <h3>Review Balance</h3>
+    <p id="bal-confirm-msg" style="font-size:13px;line-height:1.6;margin-bottom:16px"></p>
+    <div class="fg">
+      <label id="bal-confirm-label">Balance</label>
+      <input type="number" id="bal-confirm-in" step="0.01" min="0" placeholder="0.00">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeBalConfirmModal()">Skip</button>
+      <button class="btn btn-primary" onclick="saveBalConfirm()">Save Balance</button>
+    </div>
+  </div>
+</div>
+
 <!-- Reimb. search popup -->
 <div id="reimb-popup" class="reimb-popup">
   <div class="reimb-pop-search">
@@ -463,6 +500,7 @@ canvas{display:block;max-width:100%}
 let S = { accounts:[], transactions:[], customCats:[], catRenames:{}, budgets:{} };
 let editAcctId = null, summaryMonth = '', newCatColor = '#ef4444', currentView = 'summary';
 let txnPage = 1, txnPerPage = 25;
+let pendingCSVRows = null, balConfirmAcctId = null;
 
 // ── Built-in Categories ──────────────────────────────────────────────────────
 const SPECIAL_CATS = ['savings','investments'];
@@ -637,31 +675,65 @@ function handleCSV(e) {
       const rows=parseCSV(ev.target.result);
       const reverseSigns=document.getElementById('reverse-signs').checked;
       if (reverseSigns) rows.forEach(r=>{ r.amount=-r.amount; });
-      const existing=new Set(S.transactions.map(t=>`${t.date}|${t.desc}|${t.amount}`));
-      let dupes=0; const added=[];
-      for (const r of rows) {
-        const key=`${r.date}|${r.desc}|${r.amount}`;
-        if (existing.has(key)) { dupes++; continue; }
-        existing.add(key);
-        const { cat, excluded }=autoCatAndExclude(r.desc);
-        added.push({ id:uid(), date:r.date, desc:r.desc, amount:r.amount, cat, excluded, reimburses:null });
-      }
-      S.transactions=[...S.transactions,...added].sort((a,b)=>b.date.localeCompare(a.date));
-      save(); render(); hideErr();
-      const autoExcl=added.filter(t=>t.excluded).length;
-      const autoSav=added.filter(t=>t.cat==='savings').length;
-      const autoInv=added.filter(t=>t.cat==='investments').length;
-      let msg=dupes?`Imported ${added.length} transactions (${dupes} duplicates skipped).`:`Imported ${added.length} transactions.`;
-      const notes=[];
-      if (autoExcl) notes.push(`${autoExcl} auto-excluded`);
-      if (autoSav) notes.push(`${autoSav} savings`);
-      if (autoInv) notes.push(`${autoInv} investments`);
-      if (notes.length) msg+=' — '+notes.join(', ')+' detected.';
-      toast(msg);
+      pendingCSVRows=rows;
+      hideErr();
+      openCSVAccountModal();
     } catch(err) { showErr(err.message); }
     e.target.value='';
   };
   reader.readAsText(file);
+}
+function openCSVAccountModal() {
+  const sel=document.getElementById('csv-acct-sel');
+  sel.innerHTML='<option value="">— No account —</option>'+
+    S.accounts.map(a=>`<option value="${esc(a.name)}">${esc(a.name)}</option>`).join('');
+  document.getElementById('csv-acct-modal').classList.add('open');
+  setTimeout(()=>sel.focus(),50);
+}
+function closeCSVAccountModal() {
+  document.getElementById('csv-acct-modal').classList.remove('open');
+  pendingCSVRows=null;
+}
+function confirmCSVImport() {
+  if (!pendingCSVRows) return;
+  const acctName=document.getElementById('csv-acct-sel').value;
+  const rows=pendingCSVRows;
+  closeCSVAccountModal();
+  const existing=new Set(S.transactions.map(t=>`${t.date}|${t.desc}|${t.amount}`));
+  let dupes=0; const added=[];
+  for (const r of rows) {
+    const key=`${r.date}|${r.desc}|${r.amount}`;
+    if (existing.has(key)) { dupes++; continue; }
+    existing.add(key);
+    const { cat, excluded }=autoCatAndExclude(r.desc);
+    added.push({ id:uid(), date:r.date, desc:r.desc, amount:r.amount, cat, excluded, reimburses:null, account:acctName });
+  }
+  S.transactions=[...S.transactions,...added].sort((a,b)=>b.date.localeCompare(a.date));
+  save(); render();
+  const autoExcl=added.filter(t=>t.excluded).length;
+  const autoSav=added.filter(t=>t.cat==='savings').length;
+  const autoInv=added.filter(t=>t.cat==='investments').length;
+  let msg=dupes?`Imported ${added.length} transactions (${dupes} duplicates skipped).`:`Imported ${added.length} transactions.`;
+  if (acctName) msg=`[${acctName}] `+msg;
+  const notes=[];
+  if (autoExcl) notes.push(`${autoExcl} auto-excluded`);
+  if (autoSav) notes.push(`${autoSav} savings`);
+  if (autoInv) notes.push(`${autoInv} investments`);
+  if (notes.length) msg+=' — '+notes.join(', ')+' detected.';
+  toast(msg);
+  // Auto-update account balance: start from existing saved balance, apply only newly imported transactions
+  if (acctName) {
+    const acct=S.accounts.find(a=>a.name===acctName);
+    if (acct) {
+      // positive amount = expense/charge going out; negative amount = income/payment coming in
+      // Subtract delta: expenses reduce checking balance and increase credit balance owed; income does the reverse
+      const delta=added.filter(t=>!t.excluded).reduce((s,t)=>s+t.amount,0);
+      const calcBal=acct.balance-delta;
+      acct.balance=calcBal;
+      save(); renderBalances();
+      openBalConfirmModal(acct.id, calcBal);
+    }
+  }
 }
 const dz=document.getElementById('drop-zone');
 dz.addEventListener('dragover',e=>{ e.preventDefault(); dz.classList.add('over'); });
@@ -949,17 +1021,26 @@ function renderCatFilter() {
   sel.innerHTML='<option value="">All Categories</option>'+
     getCats().map(c=>`<option value="${c.key}"${c.key===cur?' selected':''}>${c.label}</option>`).join('');
 }
+function renderAcctFilter() {
+  const sel=document.getElementById('f-acct'); if (!sel) return;
+  const cur=sel.value;
+  const accts=[...new Set(S.transactions.map(t=>t.account||'').filter(Boolean))].sort();
+  sel.innerHTML='<option value="">All Accounts</option>'+
+    accts.map(a=>`<option value="${esc(a)}"${a===cur?' selected':''}>${esc(a)}</option>`).join('');
+}
 
 // ── Transactions ──────────────────────────────────────────────────────────────
 function filtered() {
   const fm=document.getElementById('f-month').value;
   const fc=document.getElementById('f-cat').value;
   const fe=document.getElementById('f-excl').value;
+  const fa=document.getElementById('f-acct').value;
   return S.transactions.filter(t=>{
     if (fm && !t.date.startsWith(fm)) return false;
     if (fc && t.cat!==fc) return false;
     if (fe==='active' && t.excluded) return false;
     if (fe==='excluded' && !t.excluded) return false;
+    if (fa && (t.account||'')!==fa) return false;
     return true;
   });
 }
@@ -974,7 +1055,7 @@ function renderTransactions() {
   const card=document.getElementById('txn-card');
   if (!S.transactions.length) { card.style.display='none'; return; }
   card.style.display='block';
-  updateMonthDrop(); renderCatFilter();
+  updateMonthDrop(); renderCatFilter(); renderAcctFilter();
   const txns=filtered();
   const totalPages=Math.max(1,Math.ceil(txns.length/txnPerPage));
   if (txnPage>totalPages) txnPage=totalPages;
@@ -986,7 +1067,7 @@ function renderTransactions() {
   const body=document.getElementById('txn-body');
   const pg=document.getElementById('txn-pagination');
   if (!txns.length) {
-    body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--muted)">No transactions match your filters.</td></tr>';
+    body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:36px;color:var(--muted)">No transactions match your filters.</td></tr>';
     pg.innerHTML=''; return;
   }
   const cats=getCats();
@@ -1011,6 +1092,7 @@ function renderTransactions() {
       :`<td></td>`;
     return `<tr class="${rowClass}">
       <td style="white-space:nowrap;color:var(--muted);font-size:12px">${fmtDate(t.date)}</td>
+      <td style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(t.account||'')}</td>
       <td><div class="desc-cell" title="${esc(t.desc)}">${esc(t.desc)}</div></td>
       <td>
         <select class="cat-sel" onchange="setCat('${t.id}',this.value)">
@@ -1300,6 +1382,32 @@ document.getElementById('help-modal').addEventListener('keydown', e=>{ if(e.key=
 document.getElementById('acct-modal').addEventListener('keydown',e=>{ if(e.key==='Enter')saveAcct(); if(e.key==='Escape')closeAcctModal(); });
 document.getElementById('cat-modal').addEventListener('keydown',e=>{ if(e.key==='Escape')closeCatModal(); });
 document.getElementById('budget-modal').addEventListener('keydown',e=>{ if(e.key==='Escape')closeBudgetModal(); });
+document.getElementById('csv-acct-modal').addEventListener('keydown',e=>{ if(e.key==='Enter')confirmCSVImport(); if(e.key==='Escape')closeCSVAccountModal(); });
+document.getElementById('bal-confirm-modal').addEventListener('keydown',e=>{ if(e.key==='Enter')saveBalConfirm(); if(e.key==='Escape')closeBalConfirmModal(); });
+function openBalConfirmModal(acctId, calcBal) {
+  balConfirmAcctId=acctId;
+  const acct=S.accounts.find(a=>a.id===acctId); if(!acct) return;
+  const isCredit=(acct.type||'checking')==='credit';
+  const balLabel=isCredit?'balance owed':'balance';
+  document.getElementById('bal-confirm-msg').innerHTML=
+    `We calculated <strong>${esc(acct.name)}</strong> ${balLabel} to be <strong>${money(Math.abs(calcBal))}</strong> (existing balance + imported transactions). Is this correct?`;
+  document.getElementById('bal-confirm-label').textContent=isCredit?'Balance Owed':'Balance';
+  const inp=document.getElementById('bal-confirm-in');
+  inp.value=Math.abs(calcBal).toFixed(2);
+  document.getElementById('bal-confirm-modal').classList.add('open');
+  setTimeout(()=>{ inp.focus(); inp.select(); },50);
+}
+function closeBalConfirmModal() {
+  document.getElementById('bal-confirm-modal').classList.remove('open');
+  balConfirmAcctId=null;
+}
+function saveBalConfirm() {
+  const acct=S.accounts.find(a=>a.id===balConfirmAcctId); if(!acct){closeBalConfirmModal();return;}
+  const raw=parseFloat(document.getElementById('bal-confirm-in').value)||0;
+  const isCredit=(acct.type||'checking')==='credit';
+  acct.balance=isCredit?-Math.abs(raw):raw;
+  save(); renderBalances(); closeBalConfirmModal();
+}
 function render() {
   renderBalances(); renderSummary(); renderTransactions(); renderCharts();
   if (currentView === 'health') renderBudgetHealth();
