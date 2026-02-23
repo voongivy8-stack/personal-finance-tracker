@@ -53,7 +53,7 @@ tr.excluded .amt{text-decoration:line-through}
 tr.excluded:hover td{background:#fdf4f4}
 .amt{font-weight:600;font-variant-numeric:tabular-nums}
 .exp{color:var(--red)}.inc{color:var(--green)}
-.cat-sel{border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:12px;background:var(--card)}
+.cat-sel{border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:12px;background:var(--card);color:var(--text)}
 .reimb-sel{border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:12px;background:var(--card);color:var(--text);max-width:220px}
 .desc-cell{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .excl-cb{cursor:pointer;width:14px;height:14px;accent-color:var(--red)}
@@ -172,6 +172,23 @@ canvas{display:block;max-width:100%}
 .insight-icon{font-size:22px;flex-shrink:0;width:32px;text-align:center}
 .insight-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:3px}
 .insight-txt{font-size:13px;color:var(--text);line-height:1.4}
+/* Pagination */
+.txn-pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 2px 2px;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border);margin-top:4px}
+.txn-pagination select{padding:3px 7px;font-size:12px}
+/* Help modal */
+.help-section{margin-bottom:20px}.help-section:last-child{margin-bottom:0}
+.help-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:8px}
+.help-row{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;line-height:1.5}
+.help-row:last-child{border-bottom:none}
+.help-row-icon{font-size:16px;flex-shrink:0;width:22px;text-align:center;padding-top:1px}
+.help-note{background:rgba(204,58,47,.07);border-left:3px solid var(--red);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;line-height:1.5;margin-top:6px;color:var(--text)}
+.col-tip{cursor:help;display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--border);font-size:10px;font-weight:700;color:var(--muted);vertical-align:middle;margin-left:3px;opacity:.8;flex-shrink:0}
+/* Tips bar */
+.tips-bar{text-align:center;padding:18px 24px 22px;margin-top:8px}
+.tips-bar-inner{display:inline-flex;align-items:center;gap:10px;max-width:680px}
+.tips-icon{font-size:18px;flex-shrink:0;opacity:.7}
+.tips-text{font-size:13px;line-height:1.6;color:var(--muted);font-style:italic;transition:opacity .6s ease}
+.tips-text.fade{opacity:0}
 /* Theme picker */
 .theme-pop{position:absolute;top:calc(100% + 8px);right:0;z-index:400;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.16);padding:12px;display:none;grid-template-columns:repeat(3,1fr);gap:6px;width:186px}
 .theme-pop.open{display:grid}
@@ -188,7 +205,7 @@ canvas{display:block;max-width:100%}
     blue:  ['#edf3fa','#fff','#c4d4e8','#0e1e36','#446080','#2860a0','#1c4c88','0 2px 10px rgba(0,0,0,.07)'],
     yellow:['#faf6e6','#fff','#e0d088','#261c00','#6a5420','#a87818','#8c6010','0 2px 10px rgba(0,0,0,.07)'],
     purple:['#f2eefa','#fff','#ccc0e8','#18083a','#584870','#6438b0','#502c98','0 2px 10px rgba(0,0,0,.07)'],
-    black: ['#141414','#1e1e1e','#323232','#ebebeb','#8a8a8a','#5a5a5a','#464646','0 2px 10px rgba(0,0,0,.35)']
+    black: ['#0d1a2e','#162030','#253550','#dde8f5','#7090b0','#2d6abf','#3b82f6','0 2px 10px rgba(0,0,0,.4)']
   };
   if(k&&T[k]){
     var v=T[k],s=document.documentElement.style;
@@ -206,9 +223,12 @@ canvas{display:block;max-width:100%}
       </div>
       <div id="today-date" style="font-size:14px;color:var(--muted);margin-top:3px"></div>
     </div>
-    <div style="position:relative;flex-shrink:0">
-      <button id="theme-btn" class="btn-icon" onclick="toggleThemePop(event)" title="Change theme" style="font-size:18px;opacity:.65">🎨</button>
-      <div id="theme-pop" class="theme-pop"></div>
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+      <button class="btn-icon" onclick="openHelpModal()" title="How to use" style="font-size:15px;font-weight:700;opacity:.6">?</button>
+      <div style="position:relative">
+        <button id="theme-btn" class="btn-icon" onclick="toggleThemePop(event)" title="Change theme" style="font-size:18px;opacity:.65">🎨</button>
+        <div id="theme-pop" class="theme-pop"></div>
+      </div>
     </div>
   </div>
   <!-- Upload -->
@@ -288,9 +308,9 @@ canvas{display:block;max-width:100%}
       </div>
     </div>
     <div class="filters">
-      <select class="fsel" id="f-month" onchange="render()"><option value="">All Months</option></select>
-      <select class="fsel" id="f-cat" onchange="render()"><option value="">All Categories</option></select>
-      <select class="fsel" id="f-excl" onchange="render()">
+      <select class="fsel" id="f-month" onchange="txnPage=1;render()"><option value="">All Months</option></select>
+      <select class="fsel" id="f-cat" onchange="txnPage=1;render()"><option value="">All Categories</option></select>
+      <select class="fsel" id="f-excl" onchange="txnPage=1;render()">
         <option value="">All Statuses</option>
         <option value="active">Active Only</option>
         <option value="excluded">Excluded Only</option>
@@ -303,11 +323,62 @@ canvas{display:block;max-width:100%}
           <tr>
             <th>Date</th><th>Description</th><th>Category</th>
             <th style="text-align:right">Amount</th><th>Reimb. for</th>
-            <th style="text-align:right">Your Cost</th><th style="text-align:center">Excl.</th><th></th>
+            <th style="text-align:right">Your Cost</th><th style="text-align:center">Excl.<span class="col-tip" title="Check this to exclude a transaction from your spending totals. Use this for credit card payments and bank transfers to avoid counting them twice.">?</span></th><th></th>
           </tr>
         </thead>
         <tbody id="txn-body"></tbody>
       </table>
+    </div>
+    <div id="txn-pagination"></div>
+  </div>
+</div>
+
+<!-- Help Modal -->
+<div class="overlay" id="help-modal" onclick="if(event.target===this)closeHelpModal()">
+  <div class="modal modal-wide" style="max-width:560px">
+    <h3>How to Use</h3>
+    <div style="max-height:68vh;overflow-y:auto;padding-right:6px;margin-bottom:16px">
+
+      <div class="help-section">
+        <div class="help-section-title">📂 Importing Transactions</div>
+        <div class="help-row"><span class="help-row-icon">1.</span><div>Drop a CSV file from your bank onto the upload area, or click it to browse. Chase, BofA, Wells Fargo, and most major banks are supported.</div></div>
+        <div class="help-row"><span class="help-row-icon">2.</span><div>Duplicate transactions are detected and skipped automatically — safe to re-import the same file.</div></div>
+        <div class="help-row"><span class="help-row-icon">3.</span><div>If debits and credits appear reversed (common with Target Circle Card), check the <strong>Reverse signs</strong> box before importing.</div></div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">🏷️ Changing Categories</div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>Use the category dropdown on any transaction row to reassign it. Changes save instantly.</div></div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>Click <strong>Manage Categories</strong> in the Transactions card to rename built-in categories or create custom ones with your own color.</div></div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">🚫 Excluding Transactions</div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>Check the <strong>Excl.</strong> checkbox on a transaction to remove it from all spending totals, charts, and summaries. Excluded rows appear grayed out with a strikethrough.</div></div>
+        <div class="help-note">⚠️ <strong>Credit card payments and bank transfers should always be excluded.</strong> If you pay your Chase bill from your checking account, that payment is not new spending — the original charges were already counted. Excluding the payment prevents double-counting.</div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">↩️ Reimbursements</div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>When a friend or employer pays you back for an expense, find the incoming payment in your transactions and use the <strong>Reimb. for</strong> dropdown to link it to the original expense.</div></div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>Once linked, the expense's <strong>Your Cost</strong> column shows your net cost after the reimbursement, and the summary reflects only what you truly spent.</div></div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">🎯 Setting Budgets</div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>Click <strong>Set Budgets</strong> in the Summary card to assign a monthly spending limit to any category.</div></div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>Switch to the <strong>Budget Health</strong> tab to see your pace versus budget, color-coded by status: green = on track, orange = watch, red = over pace.</div></div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">🏦 Managing Accounts</div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>Click <strong>+ Add Account</strong> in the Account Balances card to track checking, savings, credit cards, and brokerage accounts.</div></div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>Balances are entered manually. The <strong>Total Net Worth</strong> tile sums all accounts, subtracting any credit card balances owed.</div></div>
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" onclick="closeHelpModal()">Got it</button>
     </div>
   </div>
 </div>
@@ -380,10 +451,18 @@ canvas{display:block;max-width:100%}
 
 <div id="day-pop" class="day-pop"></div>
 
+<div class="tips-bar">
+  <div class="tips-bar-inner">
+    <span class="tips-icon">💡</span>
+    <span class="tips-text" id="tips-text"></span>
+  </div>
+</div>
+
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
 let S = { accounts:[], transactions:[], customCats:[], catRenames:{}, budgets:{} };
 let editAcctId = null, summaryMonth = '', newCatColor = '#ef4444', currentView = 'summary';
+let txnPage = 1, txnPerPage = 25;
 
 // ── Built-in Categories ──────────────────────────────────────────────────────
 const SPECIAL_CATS = ['savings','investments'];
@@ -889,17 +968,29 @@ function updateMonthDrop() {
   sel.innerHTML='<option value="">All Months</option>'+
     getMonths().map(m=>`<option value="${m}"${m===cur?' selected':''}>${fmtMonth(m)}</option>`).join('');
 }
+function setTxnPage(n) { txnPage = n; renderTransactions(); }
+function setTxnPerPage(n) { txnPerPage = n; txnPage = 1; renderTransactions(); }
 function renderTransactions() {
   const card=document.getElementById('txn-card');
   if (!S.transactions.length) { card.style.display='none'; return; }
   card.style.display='block';
   updateMonthDrop(); renderCatFilter();
   const txns=filtered();
-  document.getElementById('row-ct').textContent=`${txns.length} transaction${txns.length!==1?'s':''}`;
+  const totalPages=Math.max(1,Math.ceil(txns.length/txnPerPage));
+  if (txnPage>totalPages) txnPage=totalPages;
+  const start=(txnPage-1)*txnPerPage, end=Math.min(start+txnPerPage,txns.length);
+  const pageTxns=txns.slice(start,end);
+  document.getElementById('row-ct').textContent=txns.length<=txnPerPage
+    ?`${txns.length} transaction${txns.length!==1?'s':''}`
+    :`${start+1}–${end} of ${txns.length} transactions`;
   const body=document.getElementById('txn-body');
-  if (!txns.length) { body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--muted)">No transactions match your filters.</td></tr>'; return; }
+  const pg=document.getElementById('txn-pagination');
+  if (!txns.length) {
+    body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--muted)">No transactions match your filters.</td></tr>';
+    pg.innerHTML=''; return;
+  }
   const cats=getCats();
-  body.innerHTML=txns.map(t=>{
+  body.innerHTML=pageTxns.map(t=>{
     const isExp=t.amount>0;
     const isIncoming=t.amount<0;
     const linked=S.transactions.filter(r=>r.reimburses===t.id);
@@ -933,6 +1024,18 @@ function renderTransactions() {
       <td><button class="btn-icon" onclick="delTxn('${t.id}')" title="Delete">✕</button></td>
     </tr>`;
   }).join('');
+  // Pagination footer
+  const perPageSel = [25,50,100].map(n=>`<option value="${n}"${n===txnPerPage?' selected':''}>${n}</option>`).join('');
+  pg.innerHTML = txns.length <= 25 ? '' : `<div class="txn-pagination">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)">
+      Rows per page: <select class="fsel" onchange="setTxnPerPage(+this.value)">${perPageSel}</select>
+    </label>
+    <span style="font-size:13px;color:var(--muted)">${start+1}–${end} of ${txns.length}</span>
+    <div style="display:flex;gap:4px">
+      <button class="btn btn-ghost btn-sm" onclick="setTxnPage(${txnPage-1})" ${txnPage<=1?'disabled':''}>← Prev</button>
+      <button class="btn btn-ghost btn-sm" onclick="setTxnPage(${txnPage+1})" ${txnPage>=totalPages?'disabled':''}>Next →</button>
+    </div>
+  </div>`;
 }
 function setCat(id,cat) { const t=S.transactions.find(t=>t.id===id); if(t){t.cat=cat;save();renderSummary();} }
 function reimbDropdown(incomingId,linkedExpId) {
@@ -1191,6 +1294,9 @@ function commitTitleEdit() {
 }
 
 // ── Keyboard & Init ───────────────────────────────────────────────────────────
+function openHelpModal()  { document.getElementById('help-modal').classList.add('open'); }
+function closeHelpModal() { document.getElementById('help-modal').classList.remove('open'); }
+document.getElementById('help-modal').addEventListener('keydown', e=>{ if(e.key==='Escape') closeHelpModal(); });
 document.getElementById('acct-modal').addEventListener('keydown',e=>{ if(e.key==='Enter')saveAcct(); if(e.key==='Escape')closeAcctModal(); });
 document.getElementById('cat-modal').addEventListener('keydown',e=>{ if(e.key==='Escape')closeCatModal(); });
 document.getElementById('budget-modal').addEventListener('keydown',e=>{ if(e.key==='Escape')closeBudgetModal(); });
@@ -1700,7 +1806,7 @@ const THEMES = {
   blue:   { label:'Ocean',    swatch:'#2860a0', vars:['#edf3fa','#fff','#c4d4e8','#0e1e36','#446080','#2860a0','#1c4c88','0 2px 10px rgba(0,0,0,.07)'] },
   yellow: { label:'Honey',    swatch:'#a87818', vars:['#faf6e6','#fff','#e0d088','#261c00','#6a5420','#a87818','#8c6010','0 2px 10px rgba(0,0,0,.07)'] },
   purple: { label:'Lavender', swatch:'#6438b0', vars:['#f2eefa','#fff','#ccc0e8','#18083a','#584870','#6438b0','#502c98','0 2px 10px rgba(0,0,0,.07)'] },
-  black:  { label:'Midnight', swatch:'#505050', vars:['#141414','#1e1e1e','#323232','#ebebeb','#8a8a8a','#5a5a5a','#464646','0 2px 10px rgba(0,0,0,.35)'] }
+  black:  { label:'Midnight', swatch:'#0d1a2e', vars:['#0d1a2e','#162030','#253550','#dde8f5','#7090b0','#2d6abf','#3b82f6','0 2px 10px rgba(0,0,0,.4)'] }
 };
 const THEME_PROPS = ['--bg','--card','--border','--text','--muted','--accent','--accentH','--sh'];
 function applyTheme(key) {
@@ -1734,6 +1840,76 @@ function closeThemePop() { document.getElementById('theme-pop').classList.remove
 document.addEventListener('click', e => {
   if (!e.target.closest('#theme-pop') && !e.target.closest('#theme-btn')) closeThemePop();
 });
+
+// ── Tips & Quotes ─────────────────────────────────────────────────────────────
+const TIPS = [
+  "Pay yourself first — automate savings before you start spending.",
+  "Track every dollar. Awareness is the first step to financial freedom.",
+  "The 50/30/20 rule: 50% needs, 30% wants, 20% savings and debt.",
+  "An emergency fund of 3–6 months of expenses is your financial safety net.",
+  "Avoid lifestyle inflation — when income rises, let savings rise with it.",
+  "Review subscriptions monthly. Unused ones are silent money drains.",
+  "Small daily habits compound. A $6 daily coffee is $2,190 a year.",
+  "Invest early. Time in the market beats timing the market.",
+  "High-interest debt is an emergency. Pay it off before investing.",
+  "Automate bill payments to avoid late fees and protect your credit score.",
+  "Budget for fun. Deprivation leads to splurging — balance is sustainable.",
+  "Net worth = assets − liabilities. Track it quarterly to see real progress.",
+  "\"Do not save what is left after spending, but spend what is left after saving.\" — Warren Buffett",
+  "\"It's not your salary that makes you rich, it's your spending habits.\" — Charles A. Jaffe",
+  "\"A budget is telling your money where to go instead of wondering where it went.\" — Dave Ramsey",
+  "\"The habit of saving is itself an education; it fosters every virtue, teaches self-denial, cultivates the sense of order.\" — T.T. Munger",
+  "\"Wealth is not about having a lot of money; it's about having a lot of options.\" — Chris Rock",
+  "\"Financial peace isn't the acquisition of stuff. It's learning to live on less than you make.\" — Dave Ramsey",
+  "\"An investment in knowledge pays the best interest.\" — Benjamin Franklin",
+  "\"The stock market is a device for transferring money from the impatient to the patient.\" — Warren Buffett",
+  "\"Beware of little expenses; a small leak will sink a great ship.\" — Benjamin Franklin",
+  "\"Never spend your money before you have it.\" — Thomas Jefferson",
+  "\"Money is a terrible master but an excellent servant.\" — P.T. Barnum",
+  "\"You must gain control over your money or the lack of it will forever control you.\" — Dave Ramsey",
+  // Additional tips
+  "Use the 24-hour rule: wait a day before any non-essential purchase over $50.",
+  "Max out your employer 401(k) match first — it's an instant 50–100% return.",
+  "Index funds beat most actively managed funds over the long term. Keep costs low.",
+  "Your credit score affects loan rates, rent approvals, and sometimes jobs. Guard it.",
+  "The rule of 72: divide 72 by your annual return to estimate how long to double money.",
+  "Spend on experiences over things — happiness from purchases fades faster than memories.",
+  "Negotiate everything: salary, rent, insurance, cable. Most rates are flexible.",
+  "One income stream is fragile. A side hustle or passive income adds real security.",
+  "Roth IRA contributions grow tax-free. If eligible, max it out each year.",
+  "Dollar-cost average into investments — consistent contributions reduce timing risk.",
+  "Compare prices per unit, not per package. Bulk isn't always cheaper.",
+  "Keep housing costs under 30% of gross income to stay financially healthy.",
+  "Pay more than the minimum on debt. Even $20 extra/month cuts years of interest.",
+  "A health savings account (HSA) offers triple tax advantages — fund it if you can.",
+  "Insurance is risk transfer, not an investment. Don't overpay for coverage you don't need.",
+  "Check your credit report annually at annualcreditreport.com — errors are common.",
+  "Set savings goals with deadlines. 'Save more' is a wish; '$5,000 by December' is a plan.",
+  "Separate wants from needs before every purchase. Pause, then decide.",
+  "Compound interest works for you in savings and against you in debt. Choose wisely.",
+  "Automate a transfer to savings the day your paycheck lands — before you can spend it.",
+  "\"Opportunity is missed by most people because it is dressed in overalls and looks like work.\" — Thomas Edison",
+  "\"The goal isn't more money. The goal is living life on your own terms.\" — Chris Hogan",
+  "\"Rich people have small TVs and big libraries, and poor people have small libraries and big TVs.\" — Zig Ziglar",
+  "\"Don't tell me what you value, show me your budget, and I'll tell you what you value.\" — Joe Biden",
+  "\"Wealth consists not in having great possessions, but in having few wants.\" — Epictetus",
+  "\"The art is not in making money, but in keeping it.\" — Proverb",
+  "\"Frugality includes all the other virtues.\" — Cicero",
+];
+(function initTips() {
+  let tipIdx = Math.floor(Math.random() * TIPS.length);
+  const el = document.getElementById('tips-text');
+  if (!el) return;
+  el.textContent = TIPS[tipIdx];
+  setInterval(function() {
+    el.classList.add('fade');
+    setTimeout(function() {
+      tipIdx = (tipIdx + 1) % TIPS.length;
+      el.textContent = TIPS[tipIdx];
+      el.classList.remove('fade');
+    }, 600);
+  }, 8000);
+})();
 
 load(); render(); renderTitle();
 // Apply saved theme (green is the default CSS, so only override if different)
