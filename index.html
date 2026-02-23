@@ -26,6 +26,10 @@ h2{font-size:18px;font-weight:600}
 /* Balances */
 .bal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .bal-item{background:var(--bg);border-radius:8px;padding:14px}
+.bal-item[draggable="true"]{cursor:grab}
+.bal-item[draggable="true"]:active{cursor:grabbing}
+.bal-item.drag-over{outline:2px dashed var(--accent);outline-offset:2px}
+.bal-item.dragging{opacity:0.4}
 .bal-name{font-size:13px;color:var(--muted);margin-bottom:4px}
 .bal-amt{font-size:22px;font-weight:700}
 .bal-actions{display:flex;gap:2px}
@@ -94,6 +98,14 @@ canvas{display:block;max-width:100%}
 .overlay.open{display:flex}
 .modal{background:var(--card);border-radius:var(--r);padding:24px;width:340px;max-width:95vw;max-height:90vh;overflow-y:auto}
 .modal-wide{width:500px}
+.modal-xl{width:620px}
+.imp-hist-list{max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:4px}
+.imp-hist-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.imp-hist-row:last-child{border-bottom:none}
+.imp-hist-info{flex:1;min-width:0}
+.imp-hist-file{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imp-hist-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.imp-hist-empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
 .modal h3{font-size:17px;font-weight:600;margin-bottom:16px}
 .fg{margin-bottom:12px}
 .fg label{display:block;font-size:13px;font-weight:500;margin-bottom:5px;color:var(--text)}
@@ -233,7 +245,10 @@ canvas{display:block;max-width:100%}
   </div>
   <!-- Upload -->
   <div class="card">
-    <div class="card-header"><h2>Import Transactions</h2></div>
+    <div class="card-header">
+      <h2>Import Transactions</h2>
+      <button class="btn btn-ghost btn-sm" onclick="openImportHistoryModal()">🕓 Import History</button>
+    </div>
     <div class="drop-zone" id="drop-zone" onclick="document.getElementById('csv-in').click()">
       <div class="drop-icon">📂</div>
       <p style="font-weight:500;font-size:13px">Drop a CSV here or <span style="color:var(--accent);text-decoration:underline">click to browse</span> <span style="color:var(--muted);font-weight:400">— Chase, BofA, Wells Fargo &amp; more</span></p>
@@ -244,6 +259,10 @@ canvas{display:block;max-width:100%}
       Reverse signs <span style="color:var(--text)">(for Target Circle Card and other reversed CSVs)</span>
     </label>
     <div id="upload-err" style="color:var(--red);font-size:13px;margin-top:8px;display:none"></div>
+    <div id="undo-import-bar" style="display:none;margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;align-items:center;justify-content:space-between;gap:12px">
+      <span id="undo-import-label" style="font-size:13px;color:var(--muted)"></span>
+      <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="undoLastImport()">Remove Last Import</button>
+    </div>
   </div>
   <!-- Balances -->
   <div class="card" id="bal-card">
@@ -444,6 +463,17 @@ canvas{display:block;max-width:100%}
   </div>
 </div>
 
+<!-- Import History Modal -->
+<div class="overlay" id="imp-hist-modal" onclick="if(event.target===this)closeImportHistoryModal()">
+  <div class="modal modal-xl">
+    <h3>Import History</h3>
+    <div class="imp-hist-list" id="imp-hist-list"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeImportHistoryModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- CSV Account Selection Modal -->
 <div class="overlay" id="csv-acct-modal" onclick="if(event.target===this)closeCSVAccountModal()">
   <div class="modal">
@@ -497,10 +527,10 @@ canvas{display:block;max-width:100%}
 
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
-let S = { accounts:[], transactions:[], customCats:[], catRenames:{}, budgets:{} };
+let S = { accounts:[], transactions:[], customCats:[], catRenames:{}, budgets:{}, lastImportIds:[], importHistory:[] };
 let editAcctId = null, summaryMonth = '', newCatColor = '#ef4444', currentView = 'summary';
 let txnPage = 1, txnPerPage = 25;
-let pendingCSVRows = null, balConfirmAcctId = null;
+let pendingCSVRows = null, pendingCSVFilename = null, balConfirmAcctId = null;
 
 // ── Built-in Categories ──────────────────────────────────────────────────────
 const SPECIAL_CATS = ['savings','investments'];
@@ -613,6 +643,8 @@ function load() {
       S.customCats = d.customCats || [];
       S.catRenames = d.catRenames || {};
       S.budgets = d.budgets || {};
+      S.lastImportIds = d.lastImportIds || [];
+      S.importHistory = d.importHistory || [];
     }
   } catch(e) {}
 }
@@ -669,6 +701,7 @@ function parseCSV(text) {
 // ── File Upload ───────────────────────────────────────────────────────────────
 function handleCSV(e) {
   const file=e.target.files[0]; if (!file) return;
+  pendingCSVFilename=file.name;
   const reader=new FileReader();
   reader.onload=ev=>{
     try {
@@ -692,7 +725,7 @@ function openCSVAccountModal() {
 }
 function closeCSVAccountModal() {
   document.getElementById('csv-acct-modal').classList.remove('open');
-  pendingCSVRows=null;
+  pendingCSVRows=null; pendingCSVFilename=null;
 }
 function confirmCSVImport() {
   if (!pendingCSVRows) return;
@@ -709,7 +742,17 @@ function confirmCSVImport() {
     added.push({ id:uid(), date:r.date, desc:r.desc, amount:r.amount, cat, excluded, reimburses:null, account:acctName });
   }
   S.transactions=[...S.transactions,...added].sort((a,b)=>b.date.localeCompare(a.date));
-  save(); render();
+  S.lastImportIds=added.map(t=>t.id);
+  S.importHistory=[{
+    id: uid(),
+    timestamp: new Date().toISOString(),
+    filename: pendingCSVFilename||'Unknown file',
+    account: acctName||'',
+    count: added.length,
+    dupes,
+    txnIds: added.map(t=>t.id)
+  }, ...S.importHistory];
+  save(); render(); renderUndoImportBtn();
   const autoExcl=added.filter(t=>t.excluded).length;
   const autoSav=added.filter(t=>t.cat==='savings').length;
   const autoInv=added.filter(t=>t.cat==='investments').length;
@@ -734,6 +777,68 @@ function confirmCSVImport() {
       openBalConfirmModal(acct.id, calcBal);
     }
   }
+}
+function renderUndoImportBtn() {
+  const bar=document.getElementById('undo-import-bar');
+  const label=document.getElementById('undo-import-label');
+  if (S.lastImportIds && S.lastImportIds.length>0) {
+    label.textContent=`Last import added ${S.lastImportIds.length} transaction${S.lastImportIds.length===1?'':'s'}.`;
+    bar.style.display='flex';
+  } else {
+    bar.style.display='none';
+  }
+}
+function undoLastImport() {
+  if (!S.lastImportIds || !S.lastImportIds.length) return;
+  const idSet=new Set(S.lastImportIds);
+  const removed=S.transactions.filter(t=>idSet.has(t.id));
+  S.transactions=S.transactions.filter(t=>!idSet.has(t.id));
+  S.lastImportIds=[];
+  save(); render(); renderUndoImportBtn();
+  toast(`Removed ${removed.length} transaction${removed.length===1?'':'s'} from the last import.`);
+}
+function openImportHistoryModal() {
+  renderImportHistoryList();
+  document.getElementById('imp-hist-modal').classList.add('open');
+}
+function closeImportHistoryModal() {
+  document.getElementById('imp-hist-modal').classList.remove('open');
+}
+function renderImportHistoryList() {
+  const el=document.getElementById('imp-hist-list');
+  const hist=S.importHistory||[];
+  if (!hist.length) {
+    el.innerHTML=`<div class="imp-hist-empty">No imports yet. Import a CSV to get started.</div>`;
+    return;
+  }
+  el.innerHTML=hist.map(h=>{
+    const date=new Date(h.timestamp);
+    const dateStr=date.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const timeStr=date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    const acctLabel=h.account?`<span style="color:var(--accent)">${esc(h.account)}</span> · `:'';
+    const dupesNote=h.dupes?` · ${h.dupes} skipped`:'';
+    const stillExists=h.txnIds&&h.txnIds.some(id=>S.transactions.find(t=>t.id===id));
+    return `<div class="imp-hist-row">
+      <div class="imp-hist-info">
+        <div class="imp-hist-file" title="${esc(h.filename)}">${esc(h.filename)}</div>
+        <div class="imp-hist-meta">${acctLabel}${h.count} transaction${h.count===1?'':'s'}${dupesNote} · ${dateStr} at ${timeStr}</div>
+      </div>
+      ${stillExists
+        ? `<button class="btn btn-ghost btn-sm" style="flex-shrink:0;color:var(--red);border-color:var(--red)" onclick="undoImport('${h.id}')">Undo</button>`
+        : `<span style="font-size:12px;color:var(--muted);flex-shrink:0">Removed</span>`
+      }
+    </div>`;
+  }).join('');
+}
+function undoImport(importId) {
+  const entry=S.importHistory.find(h=>h.id===importId); if (!entry||!entry.txnIds) return;
+  if (!confirm(`Remove ${entry.count} transaction${entry.count===1?'':'s'} from "${entry.filename}"?`)) return;
+  const idSet=new Set(entry.txnIds);
+  S.transactions=S.transactions.filter(t=>!idSet.has(t.id));
+  // Also clear lastImportIds if they overlap
+  if (S.lastImportIds&&S.lastImportIds.some(id=>idSet.has(id))) { S.lastImportIds=[]; }
+  save(); render(); renderUndoImportBtn(); renderImportHistoryList();
+  toast(`Removed ${entry.count} transaction${entry.count===1?'':'s'} from "${entry.filename}".`);
 }
 const dz=document.getElementById('drop-zone');
 dz.addEventListener('dragover',e=>{ e.preventDefault(); dz.classList.add('over'); });
@@ -771,6 +876,7 @@ function saveAcct() {
 }
 function delAcct(id) { S.accounts=S.accounts.filter(a=>a.id!==id); save(); renderBalances(); }
 const ACCT_ICON = { checking:'🏦', savings:'🐷', brokerage:'📈', credit:'💳' };
+let balDragSrcId = null;
 function renderBalances() {
   const grid=document.getElementById('bal-grid');
   if (!S.accounts.length) { grid.innerHTML='<p style="color:var(--muted);font-size:14px">No accounts yet. Add your checking, savings, or credit card accounts.</p>'; return; }
@@ -781,7 +887,12 @@ function renderBalances() {
     const isCredit=type==='credit';
     const dispAmt=isCredit?`-${money(Math.abs(a.balance))}`:money(a.balance);
     const amtColor=isCredit||a.balance<0?'var(--red)':'var(--text)';
-    return `<div class="bal-item">
+    return `<div class="bal-item" draggable="true" data-id="${a.id}"
+      ondragstart="balDragStart(event,'${a.id}')"
+      ondragover="balDragOver(event)"
+      ondragleave="balDragLeave(event)"
+      ondrop="balDrop(event,'${a.id}')"
+      ondragend="balDragEnd()">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
         <span class="bal-name">${icon} ${esc(a.name)}</span>
         <div class="bal-actions">
@@ -797,6 +908,29 @@ function renderBalances() {
       <span class="bal-amt" style="color:${total<0?'var(--red)':'var(--green)'}">${total<0?'-':''}${money(Math.abs(total))}</span>
     </div>`;
 }
+function balDragStart(e, id) {
+  balDragSrcId=id;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed='move';
+}
+function balDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  e.currentTarget.classList.add('drag-over');
+}
+function balDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function balDrop(e, targetId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!balDragSrcId || balDragSrcId===targetId) return;
+  const fromIdx=S.accounts.findIndex(a=>a.id===balDragSrcId);
+  const toIdx=S.accounts.findIndex(a=>a.id===targetId);
+  if (fromIdx===-1||toIdx===-1) return;
+  const [moved]=S.accounts.splice(fromIdx,1);
+  S.accounts.splice(toIdx,0,moved);
+  save(); renderBalances();
+}
+function balDragEnd() { balDragSrcId=null; renderBalances(); }
 
 // ── Category Manager ──────────────────────────────────────────────────────────
 function openCatModal() { renderCatList(); hideAddCatBox(); document.getElementById('cat-modal').classList.add('open'); }
@@ -2019,7 +2153,21 @@ const TIPS = [
   }, 8000);
 })();
 
-load(); render(); renderTitle();
+load();
+// One-time cleanup: remove Chase Checking transactions before 2026
+(function(){
+  if (localStorage.getItem('spt-cleanup-checking-pre2026')) return;
+  const before = S.transactions.length;
+  S.transactions = S.transactions.filter(t => {
+    const isChecking = t.account && t.account.toLowerCase().includes('checking');
+    const isPre2026 = t.date && t.date < '2026';
+    return !(isChecking && isPre2026);
+  });
+  const removed = before - S.transactions.length;
+  if (removed > 0) { save(); }
+  localStorage.setItem('spt-cleanup-checking-pre2026', '1');
+})();
+render(); renderTitle(); renderUndoImportBtn();
 // Apply saved theme (green is the default CSS, so only override if different)
 (function(){ const k=localStorage.getItem('spt-theme'); if(k&&THEMES[k]) applyTheme(k); })();
 if (!localStorage.getItem('spt-name')) setTimeout(startTitleEdit, 300);
