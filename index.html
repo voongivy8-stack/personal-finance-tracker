@@ -199,9 +199,12 @@ canvas{display:block;max-width:100%}
 <body>
 <div class="wrap">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
-    <div style="display:flex;align-items:center;gap:8px">
-      <h1 id="app-title" style="margin-bottom:0"></h1>
-      <button id="title-edit-btn" class="btn-icon" onclick="startTitleEdit()" title="Edit name" style="font-size:14px;opacity:.55;margin-top:2px">✏️</button>
+    <div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <h1 id="app-title" style="margin-bottom:0"></h1>
+        <button id="title-edit-btn" class="btn-icon" onclick="startTitleEdit()" title="Edit name" style="font-size:14px;opacity:.55;margin-top:2px">✏️</button>
+      </div>
+      <div id="today-date" style="font-size:14px;color:var(--muted);margin-top:3px"></div>
     </div>
     <div style="position:relative;flex-shrink:0">
       <button id="theme-btn" class="btn-icon" onclick="toggleThemePop(event)" title="Change theme" style="font-size:18px;opacity:.65">🎨</button>
@@ -418,12 +421,12 @@ function toggleSumLayout() {
 const KEYWORDS = {
   investments:['fidelity','vanguard','robinhood','betterment','wealthfront','charles schwab','schwab brokerage','e*trade','etrade','td ameritrade','sofi invest','acorns','merrill lynch','merrill edge','webull','m1 finance','public.com','fid bkg'],
   savings:['marcus','ally bank','ally savings','high yield savings','hysa','synchrony bank','american express savings','capital one 360 savings','transfer to savings','save to savings','barclays savings','discover savings','citizens access'],
-  income:['payroll','direct deposit','salary','transfer from','ach credit','tax refund','cashback','dividend','interest paid','cash back reward'],
+  income:['payroll','direct deposit','salary','ach credit','dividend','interest paid'],
   groceries:['whole foods','trader joe','kroger','safeway','costco','walmart','target','grocery','market','aldi','publix','wegmans','sprouts','heb','food 4','smart & final','ralphs','vons','food lion','stop & shop','giant food','meijer','winco'],
-  dining:['restaurant','cafe ','coffee','starbucks','mcdonald','burger king','taco bell','pizza','sushi','subway','chipotle','dunkin','doordash','grubhub','uber eats','postmates','eatery','kitchen','grill ','bistro',' bar ','tavern','brewery','wingstop','panda express','chick-fil','shake shack','five guys','in-n-out','panera','applebees','olive garden','cheesecake factory','ihop','denny'],
-  drinks:['cafe','tea','boba','coffee house','tearoom'],
+  dining:['restaurant','cafe ','coffee','starbucks','mcdonald','burger king','taco bell','pizza','sushi','subway','chipotle','dunkin','doordash','grubhub','uber eats','postmates','eatery','kitchen','grill ','bistro',' bar ','tavern','brewery','wingstop','panda express','chick-fil','shake shack','five guys','in-n-out','panera','applebees','olive garden','cheesecake factory','ihop','denny','chicken','burger','pho','ramen','grill','taco','sandwich','deli','steakhouse','noodle','dumpling','wings','bakery','patisserie','bbq'],
+  drinks:['cafe','tea','boba','coffee house','tearoom','bubble tea','matcha','teahouse','espresso','brew'],
   transport:['uber ','lyft','taxi','parking','chevron','shell ','bp ','exxon','76 ','mobil','fuel','gas station','metro ','bart ','mta ','caltrain','amtrak','toll ','zipcar','bird ','lime ','waymo','transit','mbta','chargepoint'],
-  shopping:['amazon','ebay','etsy','zara','h&m','uniqlo','nordstrom','macys',"macy's",'gap ','old navy','forever 21','tj maxx','marshalls','ross ','clothing','apparel','best buy','apple store','ikea','home depot','lowes','wayfair','shopify','target '],
+  shopping:['amazon','ebay','etsy','zara','h&m','uniqlo','nordstrom','macys',"macy's",'gap ','old navy','forever 21','tj maxx','marshalls','ross ','clothing','apparel','best buy','apple store','ikea','home depot','lowes','wayfair','shopify','target ','boutique','retail'],
   entertainment:['netflix','spotify','hulu','disney','hbo ','apple tv','youtube premium','cinema','movie','theater','ticketmaster','stubhub','eventbrite','concert','arcade','bowling','museum','amc ','regal ','steam ','playstation','xbox game','nintendo'],
   health:['pharmacy','cvs ','walgreens','rite aid','doctor','medical','dental','vision','urgent care','hospital','clinic','gym','fitness','planet fitness','equinox','peloton','insurance','optum','kaiser','dexcom','labcorp'],
   utilities:['electric','pg&e','con ed','water ','internet','comcast','xfinity','at&t','verizon','t-mobile','sprint','utility','phone bill','sewage','garbage','waste management'],
@@ -743,7 +746,8 @@ function renderSummary() {
   const inMonth=S.transactions.filter(t=>t.date.startsWith(summaryMonth));
   // Active expenses: positive, not excluded, not savings/investments
   const expenses=inMonth.filter(t=>t.amount>0 && !t.excluded && !SPECIAL_CATS.includes(t.cat));
-  const credits=inMonth.filter(t=>t.amount<0 && !t.excluded);
+  const incomeTxns=inMonth.filter(t=>t.amount<0 && !t.excluded && t.cat==='income');
+  const creditTxns=inMonth.filter(t=>t.amount<0 && !t.excluded && t.cat!=='income');
   const savingsTxns=inMonth.filter(t=>t.amount>0 && !t.excluded && t.cat==='savings');
   const investTxns=inMonth.filter(t=>t.amount>0 && !t.excluded && t.cat==='investments');
 
@@ -754,7 +758,8 @@ function renderSummary() {
     grand+=cost;
   }
   const totalReimbursed=inMonth.filter(t=>t.reimburses&&t.excluded).reduce((s,t)=>s+Math.abs(t.amount),0);
-  const totalIncome=credits.reduce((s,t)=>s+Math.abs(t.amount),0);
+  const totalIncome=incomeTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
+  const totalCredits=creditTxns.reduce((s,t)=>s+Math.abs(t.amount),0);
   const totalSavings=savingsTxns.reduce((s,t)=>s+userCost(t),0);
   const totalInvest=investTxns.reduce((s,t)=>s+userCost(t),0);
   const excludedCt=inMonth.filter(t=>t.excluded).length;
@@ -765,7 +770,8 @@ function renderSummary() {
     ${totalSavings>0?`<div><div class="stat-label">Saved</div><div class="stat-val" style="color:var(--teal)">${money(totalSavings)}</div></div>`:''}
     ${totalInvest>0?`<div><div class="stat-label">Invested</div><div class="stat-val" style="color:var(--purple)">${money(totalInvest)}</div></div>`:''}
     ${totalReimbursed>0?`<div><div class="stat-label">Reimbursed</div><div class="stat-val" style="color:var(--green)">${money(totalReimbursed)}</div></div>`:''}
-    ${totalIncome>0?`<div><div class="stat-label">Income / Credits</div><div class="stat-val" style="color:var(--green)">${money(totalIncome)}</div></div>`:''}
+    ${totalIncome>0?`<div><div class="stat-label">Income</div><div class="stat-val" style="color:var(--green)">${money(totalIncome)}</div></div>`:''}
+    ${totalCredits>0?`<div><div class="stat-label">Credits</div><div class="stat-val" style="color:var(--teal)">${money(totalCredits)}</div></div>`:''}
     ${excludedCt>0?`<div><div class="stat-label">Excluded</div><div class="stat-val" style="color:var(--muted)">${excludedCt}</div></div>`:''}`;
 
   // Build unified cat data (regular + special)
@@ -1103,6 +1109,10 @@ function renderBudgetHealth() {
   const yellowCt = rows.filter(r => r.status === 'yellow').length;
   const redCt   = rows.filter(r => r.status === 'red').length;
   const SC = { green:'var(--green)', yellow:'var(--orange)', red:'var(--red)' };
+  const totalSpent    = rows.reduce((s, r) => s + r.spent,  0);
+  const totalBudgeted = rows.reduce((s, r) => s + r.budget, 0);
+  const totalPct      = totalBudgeted > 0 ? totalSpent / totalBudgeted : 0;
+  const totalColor    = totalPct >= 1 ? 'var(--red)' : totalPct >= 0.85 ? 'var(--orange)' : 'var(--green)';
 
   container.innerHTML = `
     <div style="display:flex;align-items:center;gap:20px;padding:16px;background:var(--bg);border-radius:10px;margin-bottom:16px">
@@ -1118,6 +1128,12 @@ function renderBudgetHealth() {
           ${redCt   ? `<span style="color:var(--red)">● ${redCt} over pace</span>`   : ''}
         </div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px">Day ${daysElapsed} of ${totalDays} · ${Math.round(pctMonthElapsed * 100)}% of month elapsed</div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+          <span style="font-size:14px;font-weight:700;color:${totalColor}">${money(totalSpent)} spent</span><span style="font-size:13px;color:var(--muted)"> / ${money(totalBudgeted)} budgeted</span>
+          <div style="margin-top:5px;height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+            <div style="width:${Math.min(100, Math.round(totalPct * 100))}%;height:100%;background:${totalColor};border-radius:3px"></div>
+          </div>
+        </div>
       </div>
     </div>
     ${rows.map(r => {
@@ -1151,6 +1167,7 @@ function renderTitle() {
   document.getElementById('app-title').textContent = name ? `${name}'s Spending Tracker` : 'Spending Tracker';
   document.getElementById('title-edit-btn').style.display = '';
   document.title = name ? `${name}'s Spending Tracker` : 'Spending Tracker';
+  document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
 }
 function startTitleEdit() {
   const name = localStorage.getItem('spt-name') || '';
@@ -1409,6 +1426,18 @@ function drawWeeklyCanvas(dailyTotals, maxVal, dayDates, todayStr) {
       ctx.closePath(); ctx.fill();
     }
   });
+  // Hover interactivity
+  canvas._weekMeta = { dayDates, pL, slotW };
+  canvas.onmousemove = function(e) {
+    const { dayDates, pL, slotW } = this._weekMeta;
+    const x = e.clientX - this.getBoundingClientRect().left;
+    const idx = Math.floor((x - pL) / slotW);
+    if (idx < 0 || idx >= 7) { this.style.cursor = 'default'; if (this._prevDay) { this._prevDay = null; closeDayPop(); } return; }
+    this.style.cursor = 'pointer';
+    const ds = dayDates[idx];
+    if (ds !== this._prevDay) { this._prevDay = ds; openDayPop(ds, e); }
+  };
+  canvas.onmouseleave = function() { this._prevDay = null; this.style.cursor = 'default'; closeDayPop(); };
 }
 
 // ── Daily Heatmap ─────────────────────────────────────────────────────────────
@@ -1706,7 +1735,7 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#theme-pop') && !e.target.closest('#theme-btn')) closeThemePop();
 });
 
-load(); recategorizeOther(); render(); renderTitle();
+load(); render(); renderTitle();
 // Apply saved theme (green is the default CSS, so only override if different)
 (function(){ const k=localStorage.getItem('spt-theme'); if(k&&THEMES[k]) applyTheme(k); })();
 if (!localStorage.getItem('spt-name')) setTimeout(startTitleEdit, 300);
