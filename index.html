@@ -819,6 +819,7 @@ function load() {
       S.catRenames = d.catRenames || {};
       S.budgets = d.budgets || {};
       S.lastImportIds = d.lastImportIds || [];
+      S.lastImportPreBalance = d.lastImportPreBalance || null;
       S.importHistory = d.importHistory || [];
     }
   } catch(e) {}
@@ -990,22 +991,54 @@ function finishImport(added, dupes, acctName, filename) {
   // On the first import for an account the user's manually entered balance already
   // reflects those transactions, so we leave it untouched. From the second import
   // onwards the balance is genuinely stale and needs adjusting.
-  if (acctName && added.length > 0) {
+  if (acctName) {
     const acct = S.accounts.find(a => a.name === acctName);
     if (acct) {
-      // Use importHistory (part of main saved state) instead of a separate localStorage key
-      // so first-import detection stays in sync even after data restores or cache clears.
-      // importHistory[0] is the import we just added above; slice(1) = all prior imports.
-      const isFirstImport = !S.importHistory.slice(1).some(h => h.account === acctName);
-      if (isFirstImport) {
-        // First import: keep the manually entered balance exactly as-is.
-        S.lastImportPreBalance = null;
+      const isCredit = (acct.type || 'checking') === 'credit';
+      // Reliable first-import detection: check whether any transactions for this account
+      // already existed BEFORE this import. If none existed, it's the first import.
+      // This avoids relying on importHistory which can get out of sync after undos/restores.
+      const addedIds = new Set(added.map(t => t.id));
+      const isFirstImport = !S.transactions.some(t => t.account === acctName && !addedIds.has(t.id));
+      const prevBal = acct.balance;
+      let calcBal, balSteps = null;
+
+      if (isFirstImport || added.length === 0) {
+        // First import or nothing new added: keep balance as-is but still show the
+        // Review Balance prompt so the user can confirm their starting balance.
+        calcBal = prevBal;
+        S.lastImportPreBalance = null; // nothing to undo
+      } else if (isCredit) {
+        // Credit card: keyword-matched payments decrease balance; everything else increases it.
+        let owed = Math.abs(acct.balance);
+        let paymentTotal = 0, chargeTotal = 0;
+        const stepLines = [];
+        for (const t of added.filter(t => !t.excluded)) {
+          const d = t.desc.toLowerCase();
+          const isPayment = PAYMENT_EXCL.some(w => d.includes(w));
+          const shortDesc = t.desc.length > 42 ? t.desc.substring(0, 42) + '…' : t.desc;
+          const before = owed;
+          if (isPayment) {
+            const pmtAmt = Math.abs(t.amount);
+            owed -= pmtAmt;
+            paymentTotal += pmtAmt;
+            stepLines.push(`<span style="color:var(--green)">↓ Payment</span>  "${esc(shortDesc)}" ${money(pmtAmt)} → ${money(before)} − ${money(pmtAmt)} = <strong>${money(owed)}</strong>`);
+          } else {
+            const chgAmt = Math.abs(t.amount);
+            owed += chgAmt;
+            chargeTotal += chgAmt;
+            stepLines.push(`<span style="color:var(--red)">↑ Charge</span>   "${esc(shortDesc)}" ${money(chgAmt)} → ${money(before)} + ${money(chgAmt)} = <strong>${money(owed)}</strong>`);
+          }
+        }
+        calcBal = owed;
+        balSteps = { start: Math.abs(acct.balance), paymentTotal, chargeTotal, lines: stepLines };
+        S.lastImportPreBalance = { acctId: acct.id, balance: prevBal };
+        acct.balance = calcBal;
       } else {
-        // Subsequent imports: apply the delta from the new transactions.
-        const isCredit = (acct.type || 'checking') === 'credit';
+        // Checking/savings: flip outgoing transactions that arrive with wrong sign.
         const delta = added.filter(t => !t.excluded).reduce((s, t) => {
           let amt = t.amount;
-          if (!isCredit && amt < 0) {
+          if (amt < 0) {
             const d = t.desc.toLowerCase();
             if (PAYMENT_EXCL.some(w => d.includes(w))
                 || /\btransfer\s+to\b/.test(d)
@@ -1016,13 +1049,16 @@ function finishImport(added, dupes, acctName, filename) {
           }
           return s + amt;
         }, 0);
-        const prevBal = acct.balance;
-        const calcBal = prevBal - delta;
+        calcBal = prevBal - delta;
         S.lastImportPreBalance = { acctId: acct.id, balance: prevBal };
         acct.balance = calcBal;
-        save(); renderBalances();
-        openBalConfirmModal(acct.id, calcBal, prevBal, delta);
       }
+
+      save(); renderBalances();
+      const displayDelta = isCredit ? calcBal - Math.abs(prevBal) : calcBal - prevBal;
+      openBalConfirmModal(acct.id, calcBal, Math.abs(prevBal), displayDelta, balSteps, isFirstImport || added.length === 0);
+    } else {
+      S.lastImportPreBalance = null;
     }
   } else {
     S.lastImportPreBalance = null;
@@ -1095,14 +1131,19 @@ function undoLastImport() {
   const removed=S.transactions.filter(t=>idSet.has(t.id));
   S.transactions=S.transactions.filter(t=>!idSet.has(t.id));
   // Restore the account balance to what it was before the import.
+  let balRestored=false;
   if (S.lastImportPreBalance) {
     const acct=S.accounts.find(a=>a.id===S.lastImportPreBalance.acctId);
-    if (acct) acct.balance=S.lastImportPreBalance.balance;
+    if (acct) { acct.balance=S.lastImportPreBalance.balance; balRestored=true; }
     S.lastImportPreBalance=null;
   }
+  // Remove the undone import from history so a re-import is treated correctly.
+  if (S.importHistory.length) S.importHistory=S.importHistory.slice(1);
   S.lastImportIds=[];
   save(); render(); renderUndoImportBtn();
-  toast(`Removed ${removed.length} transaction${removed.length===1?'':'s'} from the last import.`);
+  let msg=`Removed ${removed.length} transaction${removed.length===1?'':'s'} from the last import.`;
+  if (balRestored) msg+=' Balance restored.';
+  toast(msg);
 }
 function openImportHistoryModal() {
   renderImportHistoryList();
@@ -1925,21 +1966,39 @@ document.getElementById('cat-modal').addEventListener('keydown',e=>{ if(e.key===
 document.getElementById('budget-modal').addEventListener('keydown',e=>{ if(e.key==='Escape')closeBudgetModal(); });
 document.getElementById('csv-acct-modal').addEventListener('keydown',e=>{ if(e.key==='Enter')confirmCSVImport(); if(e.key==='Escape')closeCSVAccountModal(); });
 document.getElementById('bal-confirm-modal').addEventListener('keydown',e=>{ if(e.key==='Enter')saveBalConfirm(); if(e.key==='Escape')closeBalConfirmModal(); });
-function openBalConfirmModal(acctId, calcBal, prevBal, delta) {
+function openBalConfirmModal(acctId, calcBal, prevBal, delta, balSteps, confirmOnly) {
   balConfirmAcctId=acctId;
   const acct=S.accounts.find(a=>a.id===acctId); if(!acct) return;
   const isCredit=(acct.type||'checking')==='credit';
   const balLabel=isCredit?'balance owed':'balance';
-  let msg=`Updated <strong>${esc(acct.name)}</strong> ${balLabel}: `;
-  if (prevBal!=null && delta!=null) {
+  let msg;
+  if (confirmOnly) {
+    msg=`<strong>${esc(acct.name)}</strong> — confirm your current ${balLabel}:<br><span style="font-size:12px;color:var(--muted)">This is the first import for this account. No balance change was applied.</span>`;
+  } else {
+    msg=`Updated <strong>${esc(acct.name)}</strong> ${balLabel}: `;
+  }
+  if (!confirmOnly && prevBal!=null && delta!=null) {
     const netChange=calcBal-prevBal;
     const arrow=netChange<=0?'↓':'↑';
-    const col=netChange<=0?'var(--red)':'var(--green)';
-    // Break down outgoing vs incoming so the user can see what drove the change.
-    const outgoing=delta>0?delta:0, incoming=delta<0?Math.abs(delta):0;
+    const col=isCredit
+      ? (netChange<=0?'var(--green)':'var(--red)')
+      : (netChange<=0?'var(--red)':'var(--green)');
+    const outgoing=!isCredit&&delta>0?delta:0, incoming=!isCredit&&delta<0?Math.abs(delta):0;
     msg+=`<strong>${money(Math.abs(prevBal))}</strong> → <strong>${money(Math.abs(calcBal))}</strong> `;
     msg+=`<span style="color:${col}">(${arrow}${money(Math.abs(netChange))})</span>`;
-    if (outgoing>0||incoming>0) {
+    if (isCredit && balSteps) {
+      // Detailed step log for credit cards
+      msg+=`<br><span style="font-size:12px;color:var(--muted)">Starting balance: ${money(balSteps.start)}`;
+      if (balSteps.paymentTotal>0) msg+=` · Payments: −${money(balSteps.paymentTotal)}`;
+      if (balSteps.chargeTotal>0) msg+=` · Charges: +${money(balSteps.chargeTotal)}`;
+      msg+=`</span>`;
+      if (balSteps.lines.length>0) {
+        msg+=`<details style="margin-top:6px;font-size:12px"><summary style="cursor:pointer;color:var(--muted)">Show ${balSteps.lines.length} transaction(s) applied</summary>`;
+        msg+=`<div style="margin-top:6px;line-height:1.8;font-family:monospace;font-size:11px;background:var(--bg);border-radius:6px;padding:8px;max-height:140px;overflow-y:auto">`;
+        msg+=balSteps.lines.join('<br>');
+        msg+=`</div></details>`;
+      }
+    } else if (!isCredit && (outgoing>0||incoming>0)) {
       msg+=`<br><span style="font-size:12px;color:var(--muted)">`;
       if (outgoing>0) msg+=`${money(outgoing)} deducted`;
       if (outgoing>0&&incoming>0) msg+=' · ';
