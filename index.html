@@ -241,7 +241,7 @@ canvas{display:block;max-width:100%}
       <div id="today-date" style="font-size:14px;color:var(--muted);margin-top:3px"></div>
     </div>
     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-      <button class="btn-icon" onclick="openOnboarding()" title="Getting started guide" style="font-size:15px;font-weight:700;opacity:.6">?</button>
+      <button class="btn-icon" onclick="openHelpModal()" title="How to use" style="font-size:15px;font-weight:700;opacity:.6">?</button>
       <div style="position:relative">
         <button id="theme-btn" class="btn-icon" onclick="toggleThemePop(event)" title="Change theme" style="font-size:18px;opacity:.65">🎨</button>
         <div id="theme-pop" class="theme-pop"></div>
@@ -397,11 +397,11 @@ canvas{display:block;max-width:100%}
 
       <div class="help-section">
         <div class="help-section-title">🏦 Account Balances</div>
-        <div class="help-row"><span class="help-row-icon">1.</span><div>Click <strong>+ Add Account</strong> and enter your <strong>current balance</strong> from your bank app. This is your starting point — get it right once and the app tracks it from there.</div></div>
-        <div class="help-row"><span class="help-row-icon">2.</span><div>Each time you import a CSV, assign it to the correct account. The balance updates automatically based on the imported transactions.</div></div>
+        <div class="help-row"><span class="help-row-icon">1.</span><div>Click <strong>+ Add Account</strong> and enter your <strong>current balance</strong> from your bank app. This should reflect your balance as of today — it's your starting point.</div></div>
+        <div class="help-row"><span class="help-row-icon">2.</span><div><strong>First import:</strong> the balance stays as-is. Your starting balance already includes those transactions, so no adjustment is needed.</div></div>
+        <div class="help-row"><span class="help-row-icon">3.</span><div><strong>Second import onwards:</strong> the app automatically adjusts the balance based on the new transactions in that CSV. You'll see a <strong>Review Balance</strong> prompt to confirm or correct the result.</div></div>
         <div class="help-row"><span class="help-row-icon">💳</span><div><strong>Credit cards:</strong> new charges increase the balance owed; payments decrease it.</div></div>
         <div class="help-row"><span class="help-row-icon">🏦</span><div><strong>Checking &amp; savings:</strong> deposits increase the balance; charges and withdrawals decrease it.</div></div>
-        <div class="help-row"><span class="help-row-icon">→</span><div>After each import you'll see a <strong>Review Balance</strong> prompt. Confirm the calculated balance or type in the exact figure from your bank app to keep things precise.</div></div>
         <div class="help-row"><span class="help-row-icon">→</span><div>The <strong>Total Net Worth</strong> tile sums all accounts, subtracting credit card balances owed.</div></div>
       </div>
 
@@ -798,17 +798,27 @@ function confirmCSVImport() {
   if (autoInv) notes.push(`${autoInv} investments`);
   if (notes.length) msg+=' — '+notes.join(', ')+' detected.';
   toast(msg);
-  // Auto-update account balance: start from existing saved balance, apply only newly imported transactions
-  if (acctName) {
-    const acct=S.accounts.find(a=>a.name===acctName);
+  // Auto-update account balance for subsequent imports only.
+  // On the first import for an account the user's manually entered balance already
+  // reflects those transactions, so we leave it untouched. From the second import
+  // onwards the balance is genuinely stale and needs adjusting.
+  if (acctName && added.length > 0) {
+    const acct = S.accounts.find(a => a.name === acctName);
     if (acct) {
-      // positive amount = expense/charge going out; negative amount = income/payment coming in
-      // Subtract delta: expenses reduce checking balance and increase credit balance owed; income does the reverse
-      const delta=added.filter(t=>!t.excluded).reduce((s,t)=>s+t.amount,0);
-      const calcBal=acct.balance-delta;
-      acct.balance=calcBal;
-      save(); renderBalances();
-      openBalConfirmModal(acct.id, calcBal);
+      const importedAccts = JSON.parse(localStorage.getItem('spt-imported-accts') || '[]');
+      const isFirstImport = !importedAccts.includes(acctName);
+      if (isFirstImport) {
+        // First import: keep the manually entered balance exactly as-is.
+        importedAccts.push(acctName);
+        localStorage.setItem('spt-imported-accts', JSON.stringify(importedAccts));
+      } else {
+        // Subsequent imports: apply the delta from the new transactions.
+        const delta = added.filter(t => !t.excluded).reduce((s, t) => s + t.amount, 0);
+        const calcBal = acct.balance - delta;
+        acct.balance = calcBal;
+        save(); renderBalances();
+        openBalConfirmModal(acct.id, calcBal);
+      }
     }
   }
 }
@@ -1555,7 +1565,7 @@ const ONB_STEPS = [
   {
     icon: '🏦',
     title: 'Add Your Accounts',
-    desc: 'Start by adding your bank accounts and credit cards with their current balances. Click <strong style="color:var(--text)">+ Add Account</strong> in the Account Balances card. The app will track each balance automatically as you import transactions.'
+    desc: 'Click <strong style="color:var(--text)">+ Add Account</strong> and enter your current balance from your bank app — this should reflect your balance as of today. Your first CSV import for each account won\'t change this balance, since those transactions are already included. From your second import onwards, the app adjusts it automatically.'
   },
   {
     icon: '📂',
@@ -1609,7 +1619,7 @@ function renderOnb() {
       <div style="font-size:20px;font-weight:700;text-align:center;margin-bottom:10px">${step.title}</div>
       <div style="font-size:14px;color:var(--muted);text-align:center;line-height:1.65">${step.desc}</div>
       ${isLast ? `<div style="margin-top:16px;padding:11px 14px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--muted);text-align:center;line-height:1.5">
-        You can always re-open this guide by clicking the <strong style="color:var(--text)">?</strong> button in the top right corner.
+        For a full detailed guide — including tips on exclusions, reimbursements, and more — click the <strong style="color:var(--text)">?</strong> button in the top right anytime.
       </div>` : ''}`;
     if (onbStep === 0 && name) backBtn.style.display = 'none';
     else backBtn.style.display = '';
