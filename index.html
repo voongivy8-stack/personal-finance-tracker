@@ -214,6 +214,77 @@ canvas{display:block;max-width:100%}
 .onb-dots{display:flex;gap:7px;justify-content:center;margin-bottom:22px}
 .onb-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:all .2s}
 .onb-dot.active{background:var(--accent);transform:scale(1.25)}
+/* ── Layout helpers (converted from inline styles for responsive control) ── */
+.app-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.sum-hdr-left{display:flex;align-items:center;gap:10px}
+.vtabs-wrap{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap;padding-bottom:2px}
+.vtabs-wrap::-webkit-scrollbar{display:none}
+.sum-hdr-right{display:flex;gap:6px;flex-shrink:0}
+.txn-hdr-right{display:flex;gap:8px}
+/* ── Responsive: Tablet (≤768px) ─────────────────────────────────────────── */
+@media(max-width:768px){
+  .wrap{padding:16px 12px}
+  h1{font-size:22px}
+  .card{padding:16px}
+  .bal-grid{grid-template-columns:repeat(2,1fr)}
+  .sum-grid{grid-template-columns:repeat(3,1fr)}
+  .charts-row{grid-template-columns:1fr}
+  .btn{min-height:40px}
+  .btn-sm{min-height:36px;padding:6px 12px}
+  .vtab{min-height:36px;padding:5px 12px;font-size:13px}
+  .fsel{min-height:40px;font-size:14px}
+  .drop-zone{padding:20px 16px}
+  .tbl-wrap{-webkit-overflow-scrolling:touch}
+  .btn-icon{min-width:36px;min-height:36px}
+  .excl-cb{width:18px;height:18px}
+  .cat-sel{font-size:13px;padding:5px 8px}
+}
+/* ── Responsive: Phablet (≤600px) ───────────────────────────────────────── */
+@media(max-width:600px){
+  .card-header{flex-direction:column;align-items:flex-start;gap:10px}
+  .sum-hdr-left{flex-direction:column;align-items:stretch;gap:6px;width:100%}
+  .vtabs-wrap{width:100%}
+  .sum-hdr-right{width:100%;justify-content:flex-end}
+  .txn-hdr-right{width:100%;justify-content:flex-end}
+}
+/* ── Responsive: Phone (≤480px) ─────────────────────────────────────────── */
+@media(max-width:480px){
+  .wrap{padding:12px 8px}
+  h1{font-size:18px}
+  .app-header{margin-bottom:16px}
+  .card{padding:12px;margin-bottom:14px}
+  .bal-grid{grid-template-columns:repeat(2,1fr)}
+  .sum-grid{grid-template-columns:repeat(2,1fr)}
+  .bal-amt{font-size:18px}
+  .bal-item{padding:10px}
+  .bal-name{font-size:12px}
+  .stat-val{font-size:16px}
+  .stat-label{font-size:11px}
+  .sum-amt{font-size:15px}
+  .sum-cat{font-size:11px}
+  h2{font-size:15px}
+  .stats-bar{gap:10px}
+  .sum-list-name{min-width:90px;font-size:12px}
+  .sum-list-amt{min-width:55px;font-size:12px}
+  .sum-list-meta{min-width:50px;font-size:10px}
+  .sum-list-bar{min-width:30px}
+  .txn-pagination{flex-direction:column;gap:6px;align-items:stretch;text-align:center}
+  .toast{bottom:12px;right:12px;left:12px;text-align:center}
+  #undo-import-bar{flex-direction:column!important;align-items:flex-start!important;gap:8px!important}
+  .drop-zone p{font-size:12px}
+  .modal{padding:16px}
+  .modal h3{font-size:15px}
+  .modal-wide,.modal-xl{width:calc(100vw - 24px)}
+  .week-stat{padding:8px 10px;min-width:80px}
+  .week-stat-val{font-size:14px}
+  .insight-card{gap:8px;padding:10px}
+  .insight-txt{font-size:12px}
+  .rec-row{gap:8px}
+  .rec-name{font-size:12px}
+  .hmap-cell{border-radius:3px}
+  .hmap-day{font-size:9px}
+  .desc-cell{max-width:160px}
+}
 </style>
 <script>(function(){
   var k=localStorage.getItem('spt-theme');
@@ -232,7 +303,7 @@ canvas{display:block;max-width:100%}
 </head>
 <body>
 <div class="wrap">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+  <div class="app-header">
     <div>
       <div style="display:flex;align-items:center;gap:8px">
         <h1 id="app-title" style="margin-bottom:0"></h1>
@@ -280,9 +351,9 @@ canvas{display:block;max-width:100%}
   <!-- Summary -->
   <div class="card" id="sum-card" style="display:none">
     <div class="card-header">
-      <div style="display:flex;align-items:center;gap:10px">
+      <div class="sum-hdr-left">
         <h2>Summary</h2>
-        <div style="display:flex;gap:4px">
+        <div class="vtabs-wrap">
           <button class="vtab active" id="vtab-summary" onclick="setView('summary')">Monthly</button>
           <button class="vtab" id="vtab-health" onclick="setView('health')">Budget Health</button>
           <button class="vtab" id="vtab-weekly" onclick="setView('weekly')">Weekly</button>
@@ -291,7 +362,7 @@ canvas{display:block;max-width:100%}
           <button class="vtab" id="vtab-insights" onclick="setView('insights')">Insights</button>
         </div>
       </div>
-      <div style="display:flex;gap:6px">
+      <div class="sum-hdr-right">
         <button id="layout-toggle-btn" class="btn btn-ghost btn-sm" onclick="toggleSumLayout()">☰ List</button>
         <button class="btn btn-ghost btn-sm" onclick="openBudgetModal()">Set Budgets</button>
       </div>
@@ -326,9 +397,9 @@ canvas{display:block;max-width:100%}
   <div class="card" id="txn-card" style="display:none">
     <div class="card-header">
       <h2>Transactions</h2>
-      <div style="display:flex;gap:8px">
+      <div class="txn-hdr-right">
         <button class="btn btn-ghost btn-sm" onclick="openCatModal()">Manage Categories</button>
-<button class="btn btn-ghost btn-sm" onclick="clearAll()">Clear All</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearAll()">Clear All</button>
       </div>
     </div>
     <div class="filters">
