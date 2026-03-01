@@ -43,6 +43,13 @@ h2{font-size:18px;font-weight:600}
 .vtab{padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--muted);transition:all .15s;font-weight:500}
 .vtab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 /* Filters */
+/* Skipped transactions panel */
+.skipped-th{padding:7px 10px;text-align:left;font-weight:600;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
+#skipped-body tr{border-bottom:1px solid var(--border)}
+#skipped-body tr:last-child{border-bottom:none}
+#skipped-body td{padding:7px 10px;vertical-align:middle}
+.skipped-reason{font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 7px;color:var(--muted);white-space:nowrap}
+/* Filters */
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .fsel{border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;background:var(--card);color:var(--text)}
 /* Table */
@@ -354,6 +361,26 @@ canvas{display:block;max-width:100%}
       <span id="undo-import-label" style="font-size:13px;color:var(--muted)"></span>
       <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:var(--red)" onclick="undoLastImport()">Remove Last Import</button>
     </div>
+    <div id="skipped-panel" style="display:none;margin-top:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span id="skipped-panel-title" style="font-size:13px;font-weight:600;color:var(--muted)"></span>
+        <button class="btn btn-ghost btn-sm" onclick="clearSkippedPanel()">Dismiss</button>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:var(--bg)">
+              <th class="skipped-th">Date</th>
+              <th class="skipped-th">Description</th>
+              <th class="skipped-th" style="text-align:right">Amount</th>
+              <th class="skipped-th">Reason</th>
+              <th class="skipped-th"></th>
+            </tr>
+          </thead>
+          <tbody id="skipped-body"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
   <!-- Summary -->
   <div class="card" id="sum-card" style="display:none">
@@ -418,6 +445,7 @@ canvas{display:block;max-width:100%}
         <option value="active">Active Only</option>
         <option value="excluded">Excluded Only</option>
       </select>
+      <input class="fsel" type="search" id="f-search" placeholder="Search descriptions…" oninput="txnPage=1;renderTransactions()" style="min-width:180px">
       <span id="row-ct" style="font-size:13px;color:var(--muted);margin-left:auto"></span>
     </div>
     <div class="tbl-wrap">
@@ -641,6 +669,7 @@ let S = { accounts:[], transactions:[], customCats:[], catRenames:{}, budgets:{}
 let editAcctId = null, summaryMonth = '', newCatColor = '#ef4444', currentView = 'summary';
 let txnPage = 1, txnPerPage = 25;
 let pendingCSVRows = null, pendingCSVFilename = null, balConfirmAcctId = null, fuzzyPendingData = null;
+let lastSkippedRows = []; // ephemeral — rows skipped by the last import, shown in the skipped panel
 
 // ── Built-in Categories ──────────────────────────────────────────────────────
 const SPECIAL_CATS = ['savings','investments'];
@@ -778,14 +807,14 @@ function isFuzzyDupe(descA, descB) {
     const longer = Math.max(a.length, b.length);
     if (shorter >= 8 && shorter / longer >= 0.5) return true;
   }
-  // Word-level Jaccard similarity ≥ 0.6 on words longer than 2 chars
+  // Word-level Jaccard similarity ≥ 0.8 on words longer than 2 chars
   const wa = a.split(' ').filter(w=>w.length>2);
   const wb = b.split(' ').filter(w=>w.length>2);
   if (!wa.length || !wb.length) return false;
   const sa=new Set(wa), sb=new Set(wb);
   const inter=[...sa].filter(w=>sb.has(w)).length;
   const union=new Set([...sa,...sb]).size;
-  return union>0 && inter/union>=0.6;
+  return union>0 && inter/union>=0.8;
 }
 
 function getCats() {
@@ -909,6 +938,9 @@ function confirmCSVImport() {
   const rows=pendingCSVRows;
   const filename=pendingCSVFilename||'Unknown file';
   closeCSVAccountModal();
+  lastSkippedRows = []; // reset for this import session
+  console.group(`[Import] ${filename} → "${acctName}" (${rows.length} rows parsed)`);
+  console.log('[Import] Parsed rows:', rows.map(r=>({date:r.date, desc:r.desc, amount:r.amount})));
   // ── Deduplication ─────────────────────────────────────────────────────────
   // 1. ID-based: Venmo/Zelle/TurboTax embed unique IDs → definitive match, auto-skip.
   // 2. Key-based: normalized date|desc|amount → exact structural match, auto-skip.
@@ -922,48 +954,70 @@ function confirmCSVImport() {
   const seenIds=new Set(); // IDs seen within this CSV batch (catches within-file dupes)
   let dupes=0; const added=[];
   for (const r of rows) {
+    const logPrefix=`[Import] "${r.desc}" (${r.date}, ${r.amount})`;
     // ID check first — if the embedded ID already exists, it's a definite duplicate
     const rid=extractTxnId(r.desc);
-    if (rid && (existingIds.has(rid) || seenIds.has(rid))) { dupes++; continue; }
+    if (rid && (existingIds.has(rid) || seenIds.has(rid))) {
+      console.warn(`${logPrefix} → SKIPPED (id-based dupe, extracted id="${rid}", inExisting=${existingIds.has(rid)}, inBatch=${seenIds.has(rid)})`);
+      lastSkippedRows.push({ date:r.date, desc:r.desc, amount:r.amount, acctName, reason:'id' });
+      dupes++; continue;
+    }
     if (rid) seenIds.add(rid);
     // Normalized key check
-    const key=`${r.date}|${normalizeDesc(r.desc)}|${r.amount}`;
-    if (existing.has(key)) { dupes++; continue; }
+    const normDesc=normalizeDesc(r.desc);
+    const key=`${r.date}|${normDesc}|${r.amount}`;
+    if (existing.has(key)) {
+      console.warn(`${logPrefix} → SKIPPED (exact key match: "${key}")`);
+      lastSkippedRows.push({ date:r.date, desc:r.desc, amount:r.amount, acctName, reason:'exact' });
+      dupes++; continue;
+    }
     existing.add(key);
     const { cat, excluded }=autoCatAndExclude(r.desc);
+    console.log(`${logPrefix} → PASSED dedup (normDesc="${normDesc}", cat="${cat}", excluded=${excluded})`);
     added.push({ id:uid(), date:r.date, desc:r.desc, amount:r.amount, cat, excluded, reimburses:null, account:acctName });
   }
+  console.log(`[Import] After dedup: ${added.length} new, ${dupes} exact dupes skipped`);
   // ── Fuzzy duplicate detection ─────────────────────────────────────────────
-  // Pass 1: same date + same amount + similar/case-variant description → high confidence.
-  // Pass 2: same date + same amount alone (any description) → lower confidence, user decides.
+  // Requires all three to match: same date + same amount + description similarity ≥ 80%.
+  // Date+amount alone is NOT enough — common amounts on the same day would cause false positives.
   const clean=[], fuzzyMatches=[];
   for (const t of added) {
-    let existMatch=S.transactions.find(e=>
+    const existMatch=S.transactions.find(e=>
       e.date===t.date &&
       Math.abs(e.amount-t.amount)<0.01 &&
       isFuzzyDupe(t.desc, e.desc)
     );
     if (existMatch) {
+      console.warn(`[Import] "${t.desc}" (${t.date}, ${t.amount}) → FUZZY DUPE of existing "${existMatch.desc}" (${existMatch.date}, ${existMatch.amount})`);
       fuzzyMatches.push({ newTxn:t, existTxn:existMatch, reason:'desc' });
-      continue;
-    }
-    existMatch=S.transactions.find(e=>
-      e.date===t.date &&
-      Math.abs(e.amount-t.amount)<0.01
-    );
-    if (existMatch) {
-      fuzzyMatches.push({ newTxn:t, existTxn:existMatch, reason:'amount_date' });
       continue;
     }
     clean.push(t);
   }
+  console.log(`[Import] After fuzzy check: ${clean.length} clean, ${fuzzyMatches.length} flagged for review`);
+  console.groupEnd();
   if (fuzzyMatches.length>0) {
     openFuzzyDupeModal(fuzzyMatches, clean, dupes, acctName, filename);
   } else {
     finishImport(added, dupes, acctName, filename);
   }
 }
+function accountHasTransactions(acctName) {
+  // Read directly from localStorage (the persisted source of truth) rather than
+  // in-memory S.transactions, which can be out of sync after undos or mid-flow saves.
+  try {
+    const raw = localStorage.getItem('spt-v2');
+    if (!raw) return false;
+    const txns = (JSON.parse(raw).transactions) || [];
+    return txns.some(t => t.account === acctName);
+  } catch(e) {
+    return false;
+  }
+}
 function finishImport(added, dupes, acctName, filename) {
+  // First-import = no persisted transactions for this account yet.
+  // Read from localStorage directly so this is never fooled by stale in-memory state.
+  const isFirstImport = acctName ? !accountHasTransactions(acctName) : false;
   S.transactions=[...S.transactions,...added].sort((a,b)=>b.date.localeCompare(a.date));
   S.lastImportIds=added.map(t=>t.id);
   S.importHistory=[{
@@ -975,7 +1029,7 @@ function finishImport(added, dupes, acctName, filename) {
     dupes,
     txnIds: added.map(t=>t.id)
   }, ...S.importHistory];
-  save(); render(); renderUndoImportBtn();
+  save(); render(); renderUndoImportBtn(); renderSkippedPanel();
   const autoExcl=added.filter(t=>t.excluded).length;
   const autoSav=added.filter(t=>t.cat==='savings').length;
   const autoInv=added.filter(t=>t.cat==='investments').length;
@@ -995,11 +1049,6 @@ function finishImport(added, dupes, acctName, filename) {
     const acct = S.accounts.find(a => a.name === acctName);
     if (acct) {
       const isCredit = (acct.type || 'checking') === 'credit';
-      // Reliable first-import detection: check whether any transactions for this account
-      // already existed BEFORE this import. If none existed, it's the first import.
-      // This avoids relying on importHistory which can get out of sync after undos/restores.
-      const addedIds = new Set(added.map(t => t.id));
-      const isFirstImport = !S.transactions.some(t => t.account === acctName && !addedIds.has(t.id));
       const prevBal = acct.balance;
       let calcBal, balSteps = null;
 
@@ -1104,9 +1153,14 @@ function openFuzzyDupeModal(fuzzyMatches, clean, dupes, acctName, filename) {
 function completeFuzzyImport() {
   if (!fuzzyPendingData) return;
   const {fuzzyMatches, clean, dupes, acctName, filename}=fuzzyPendingData;
-  const kept=fuzzyMatches
-    .filter((_,i)=>[...document.querySelectorAll(`input[name="fd${i}"]`)].find(r=>r.checked)?.value==='keep')
-    .map(m=>m.newTxn);
+  const kept=[], skipped=[];
+  fuzzyMatches.forEach((m,i)=>{
+    const choice=[...document.querySelectorAll(`input[name="fd${i}"]`)].find(r=>r.checked)?.value;
+    if (choice==='keep') kept.push(m.newTxn);
+    else skipped.push(m.newTxn);
+  });
+  // Add fuzzy-skipped rows to the panel so the user can include them later
+  skipped.forEach(t => lastSkippedRows.push({ date:t.date, desc:t.desc, amount:t.amount, acctName, reason:'fuzzy' }));
   document.getElementById('fuzzy-dupe-modal').classList.remove('open');
   fuzzyPendingData=null;
   finishImport([...clean,...kept], dupes, acctName, filename);
@@ -1114,6 +1168,69 @@ function completeFuzzyImport() {
 function cancelFuzzyImport() {
   document.getElementById('fuzzy-dupe-modal').classList.remove('open');
   fuzzyPendingData=null;
+  lastSkippedRows=[];
+  renderSkippedPanel();
+}
+function renderSkippedPanel() {
+  const panel = document.getElementById('skipped-panel');
+  const body  = document.getElementById('skipped-body');
+  const title = document.getElementById('skipped-panel-title');
+  if (!panel) return;
+  if (!lastSkippedRows.length) { panel.style.display='none'; return; }
+  panel.style.display = 'block';
+  const n = lastSkippedRows.length;
+  title.textContent = `${n} skipped transaction${n===1?'':'s'} — click Include to add`;
+  const reasonLabel = { exact:'Duplicate', id:'Duplicate (ID)', fuzzy:'Possible duplicate' };
+  body.innerHTML = lastSkippedRows.map((r,i) => {
+    const isExp = r.amount > 0;
+    return `<tr>
+      <td style="white-space:nowrap;color:var(--muted);font-size:12px">${fmtDate(r.date)}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.desc)}">${esc(r.desc)}</td>
+      <td style="text-align:right"><span class="amt ${isExp?'exp':'inc'}">${isExp?'-':'+'}${money(Math.abs(r.amount))}</span></td>
+      <td><span class="skipped-reason">${reasonLabel[r.reason]||r.reason}</span></td>
+      <td style="text-align:right"><button class="btn btn-ghost btn-sm" onclick="includeSkippedTxn(${i})">Include</button></td>
+    </tr>`;
+  }).join('');
+}
+function includeSkippedTxn(index) {
+  const r = lastSkippedRows[index];
+  if (!r) return;
+  const { cat, excluded } = autoCatAndExclude(r.desc);
+  const txn = { id:uid(), date:r.date, desc:r.desc, amount:r.amount, cat, excluded, reimburses:null, account:r.acctName };
+  S.transactions = [...S.transactions, txn].sort((a,b) => b.date.localeCompare(a.date));
+  // Adjust the account balance by the same rules used during a normal import.
+  if (r.acctName && !excluded) {
+    const acct = S.accounts.find(a => a.name === r.acctName);
+    if (acct) {
+      const isCredit = (acct.type || 'checking') === 'credit';
+      if (isCredit) {
+        const d = r.desc.toLowerCase();
+        const isPayment = PAYMENT_EXCL.some(w => d.includes(w));
+        const owed = Math.abs(acct.balance);
+        const newOwed = isPayment ? owed - Math.abs(r.amount) : owed + Math.abs(r.amount);
+        acct.balance = -newOwed;
+      } else {
+        let amt = r.amount;
+        if (amt < 0) {
+          const d = r.desc.toLowerCase();
+          if (PAYMENT_EXCL.some(w => d.includes(w))
+              || /\btransfer\s+to\b/.test(d)
+              || d.includes('outgoing transfer')
+              || d.includes('outgoing wire')) {
+            amt = -amt;
+          }
+        }
+        acct.balance = acct.balance - amt;
+      }
+    }
+  }
+  lastSkippedRows.splice(index, 1);
+  save(); render();
+  renderSkippedPanel();
+}
+function clearSkippedPanel() {
+  lastSkippedRows = [];
+  renderSkippedPanel();
 }
 function renderUndoImportBtn() {
   const bar=document.getElementById('undo-import-bar');
@@ -1517,12 +1634,15 @@ function filtered() {
   const fc=document.getElementById('f-cat').value;
   const fe=document.getElementById('f-excl').value;
   const fa=document.getElementById('f-acct').value;
+  const fsEl=document.getElementById('f-search');
+  const fs=(fsEl?fsEl.value:'').trim().toLowerCase();
   return S.transactions.filter(t=>{
     if (fm && !t.date.startsWith(fm)) return false;
     if (fc && t.cat!==fc) return false;
     if (fe==='active' && t.excluded) return false;
     if (fe==='excluded' && !t.excluded) return false;
     if (fa && (t.account||'')!==fa) return false;
+    if (fs && !t.desc.toLowerCase().includes(fs)) return false;
     return true;
   });
 }
