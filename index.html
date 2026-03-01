@@ -413,9 +413,17 @@ canvas{display:block;max-width:100%}
           <canvas id="donut-c" style="width:220px;height:220px;margin:0 auto"></canvas>
           <div class="donut-legend" id="donut-legend"></div>
         </div>
-        <div class="chart-box" style="display:flex;flex-direction:column">
-          <div class="chart-title">Monthly Spending</div>
-          <canvas id="bar-c" style="width:100%;flex:1;min-height:120px"></canvas>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="chart-box" style="flex:1;display:flex;flex-direction:column">
+            <div class="chart-title">Monthly Spending</div>
+            <canvas id="bar-c" style="width:100%;flex:1;min-height:80px"></canvas>
+            <div id="avg-spend-label" style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center"></div>
+          </div>
+          <div class="chart-box" style="flex:1;display:flex;flex-direction:column">
+            <div class="chart-title">Monthly Income</div>
+            <canvas id="income-c" style="width:100%;flex:1;min-height:80px"></canvas>
+            <div id="avg-income-label" style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -475,6 +483,13 @@ canvas{display:block;max-width:100%}
         <div class="help-row"><span class="help-row-icon">1.</span><div>Drop a CSV file from your bank onto the upload area, or click it to browse. Chase, BofA, Wells Fargo, and most major banks are supported.</div></div>
         <div class="help-row"><span class="help-row-icon">2.</span><div>Duplicate transactions are detected and skipped automatically — safe to re-import the same file.</div></div>
         <div class="help-row"><span class="help-row-icon">3.</span><div>If debits and credits appear reversed (common with Target Circle Card), check the <strong>Reverse signs</strong> box before importing.</div></div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">⏭️ Skipped Transactions</div>
+        <div class="help-row"><span class="help-row-icon">→</span><div><strong>Exact duplicates</strong> (same date, description, and amount) are silently skipped — it's always safe to re-import a file you've already imported.</div></div>
+        <div class="help-row"><span class="help-row-icon">→</span><div><strong>Fuzzy duplicates</strong> — transactions that share a date and amount but have a slightly different description — are flagged in a review step. You choose whether to skip each one as a duplicate or keep it as a new transaction.</div></div>
+        <div class="help-row"><span class="help-row-icon">→</span><div>Any transaction you choose to skip appears in the <strong>Skipped</strong> panel below the upload area. Click <strong>Include</strong> next to a row to add it to your transactions at any time. Your account balance is updated automatically.</div></div>
       </div>
 
       <div class="help-section">
@@ -1749,7 +1764,7 @@ function renderCharts() {
   const row=document.getElementById('charts-row');
   if (!expenses.length) { row.style.display='none'; return; }
   row.style.display='grid';
-  drawDonut(expenses); drawBar();
+  drawDonut(expenses); drawBar(); drawIncomeBar();
 }
 function setupCanvas(canvas,cssW,cssH) {
   const dpr=window.devicePixelRatio||1;
@@ -1830,6 +1845,58 @@ function drawBar() {
     ctx.textAlign='center'; ctx.textBaseline='top';
     ctx.fillText(label,pL+i*slotW+slotW/2,pT+cH+5);
   });
+  const withSpend=data.filter(d=>d.total>0);
+  const avg=withSpend.length?withSpend.reduce((s,d)=>s+d.total,0)/withSpend.length:0;
+  document.getElementById('avg-spend-label').textContent=avg>0?`Average Monthly Spend: ${money(avg)}`:'';
+}
+function drawIncomeBar() {
+  const canvas=document.getElementById('income-c');
+  const cssW=Math.max(canvas.parentElement.clientWidth-32,200), cssH=Math.max(canvas.clientHeight||120,80);
+  const ctx=setupCanvas(canvas,cssW,cssH);
+  const curYear=new Date().getFullYear().toString();
+  const allMonths=getMonths().slice().reverse().filter(m=>m.startsWith(curYear)); if (!allMonths.length) return;
+  const data=allMonths.map(m=>({
+    month:m,
+    total:S.transactions.filter(t=>t.date.startsWith(m)&&t.amount<0&&!t.excluded&&t.cat==='income').reduce((s,t)=>s+Math.abs(t.amount),0)
+  }));
+  const W=cssW,H=cssH,pL=58,pR=12,pT=14,pB=36,cW=W-pL-pR,cH=H-pT-pB;
+  ctx.clearRect(0,0,W,H);
+  const green=cssVar('--green'), muted=cssVar('--muted'), border=cssVar('--border');
+  const {r:gr,g:gg,b:gb}=parseHex(green), {r:cr,g:cg,b:cb}=parseHex(cssVar('--card'));
+  const inactiveBar=`rgb(${Math.round(gr*.22+cr*.78)},${Math.round(gg*.22+cg*.78)},${Math.round(gb*.22+cb*.78)})`;
+  const maxVal=Math.max(...data.map(d=>d.total),1);
+  const niceMax=Math.ceil(maxVal/50)*50;
+  ctx.lineWidth=1;
+  for (let i=0;i<=4;i++) {
+    const val=(niceMax/4)*i, y=pT+cH-(val/niceMax)*cH;
+    ctx.strokeStyle=border; ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(pL+cW,y); ctx.stroke();
+    ctx.fillStyle=muted; ctx.font='10px -apple-system,sans-serif';
+    ctx.textAlign='right'; ctx.textBaseline='middle';
+    ctx.fillText('$'+(val>=1000?(val/1000).toFixed(val%1000?1:0)+'k':Math.round(val)),pL-5,y);
+  }
+  const slotW=cW/data.length, barW=Math.min(36,slotW*0.55);
+  data.forEach(({month,total},i)=>{
+    const bH=(total/niceMax)*cH, x=pL+i*slotW+slotW/2-barW/2, y=pT+cH-bH;
+    const isActive=month===summaryMonth;
+    ctx.fillStyle=isActive?green:inactiveBar;
+    const rr=Math.min(4,bH/2);
+    if (bH>0) {
+      ctx.beginPath();
+      ctx.moveTo(x+rr,y); ctx.lineTo(x+barW-rr,y);
+      ctx.arcTo(x+barW,y,x+barW,y+rr,rr); ctx.lineTo(x+barW,pT+cH);
+      ctx.lineTo(x,pT+cH); ctx.lineTo(x,y+rr); ctx.arcTo(x,y,x+rr,y,rr);
+      ctx.closePath(); ctx.fill();
+    }
+    const [yr,mo]=month.split('-');
+    const label=new Date(+yr,+mo-1,1).toLocaleString('default',{month:'short'});
+    ctx.fillStyle=isActive?green:muted;
+    ctx.font=`${isActive?'600':'400'} 10px -apple-system,sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText(label,pL+i*slotW+slotW/2,pT+cH+5);
+  });
+  const withIncome=data.filter(d=>d.total>0);
+  const avg=withIncome.length?withIncome.reduce((s,d)=>s+d.total,0)/withIncome.length:0;
+  document.getElementById('avg-income-label').textContent=avg>0?`Average Monthly Income: ${money(avg)}`:'';
 }
 
 // ── View Switching ────────────────────────────────────────────────────────────
