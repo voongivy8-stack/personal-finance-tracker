@@ -1754,7 +1754,35 @@ function linkReimbursement(incomingId,expenseId) {
   if(t){ t.reimburses=expenseId||null; save();renderTransactions();renderSummary(); }
 }
 function toggleExclude(id,checked) { const t=S.transactions.find(t=>t.id===id); if(t){t.excluded=checked;save();renderTransactions();renderSummary();} }
-function delTxn(id) { S.transactions=S.transactions.filter(t=>t.id!==id);save();render(); }
+function delTxn(id) {
+  const t = S.transactions.find(t => t.id === id);
+  if (t && !t.excluded && t.account) {
+    const acct = S.accounts.find(a => a.name === t.account);
+    if (acct) {
+      const isCredit = (acct.type || 'checking') === 'credit';
+      if (isCredit) {
+        const d = t.desc.toLowerCase();
+        const isPayment = PAYMENT_EXCL.some(w => d.includes(w));
+        const owed = Math.abs(acct.balance);
+        acct.balance = isPayment ? -(owed + Math.abs(t.amount)) : -(owed - Math.abs(t.amount));
+      } else {
+        let amt = t.amount;
+        if (amt < 0) {
+          const d = t.desc.toLowerCase();
+          if (PAYMENT_EXCL.some(w => d.includes(w))
+              || /\btransfer\s+to\b/.test(d)
+              || d.includes('outgoing transfer')
+              || d.includes('outgoing wire')) {
+            amt = -amt;
+          }
+        }
+        acct.balance = acct.balance + amt;
+      }
+    }
+  }
+  S.transactions = S.transactions.filter(t => t.id !== id);
+  save(); render();
+}
 function clearAll() { if(!confirm('Delete all transactions? This cannot be undone.')) return; S.transactions=[];save();render(); }
 
 // ── Charts ────────────────────────────────────────────────────────────────────
